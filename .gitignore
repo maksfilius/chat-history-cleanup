@@ -1,0 +1,11 @@
+node_modules/
+dist/
+chat-cleanup.zip
+.DS_Store
+
+# internal planning docs — kept local, not published
+AGENTS.md
+AGENT_TASK.md
+TASKS.md
+PRO_FEATURES.md
+docs/product-spec.md
