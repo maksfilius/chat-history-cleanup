@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 const baseline = process.argv.includes('--baseline');
 const installCheck = process.argv.includes('--check-install');
-const ownershipCheck = process.argv.includes('--check-queue-ownership');
+const ownershipCheck = !process.argv.includes('--skip-queue-ownership');
 const profile = mkdtempSync(join(tmpdir(), 'chat-cleanup-browser-audit-'));
 const browser = spawn(process.env.CHROME_BIN ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', [
   '--headless=new', '--remote-debugging-pipe', `--user-data-dir=${profile}`,
@@ -177,8 +177,9 @@ try {
     console.log('PASS: malicious title, isolated globals, synthetic selection/confirmation rejection, trusted selection, cancel, exact count and target');
     console.log('PASS: a refused saved record is not resumed, does not disable the panel, and is dismissible');
     if (ownershipCheck) {
-      // A release regression: closing/reopening must never create a second active owner.
-      // Currently expected to FAIL (audit F06). All requests here remain synthetic.
+      // Closing and reopening the panel must never create a second destructive worker: the
+      // cross-tab lease cannot catch this, because the reopened panel is the same owner.
+      // All requests here remain synthetic.
       await evaluate('writes = []; holdWrites = true');
       await click('.cc-x');
       await click('.cc-open');
@@ -193,6 +194,7 @@ try {
       const inFlight = await evaluate('writes');
       console.log(JSON.stringify({ ownershipCheck: 'active requests after reopen/resume', inFlight }));
       assert.equal(inFlight.length, 1, 'closing/reopening must not start a second destructive worker');
+      console.log('PASS: reopening the panel does not start a second destructive worker');
     }
   }
 } finally {

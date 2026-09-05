@@ -46,8 +46,9 @@ const op = (id: string, state: Operation['state'], attempts = 1): Operation => (
   attempts,
 });
 
-test('an interrupted operation comes back queued, with its retries reset', async () => {
-  // Documents the current unsafe recovery behavior (audit F04), not an exactly-once guarantee.
+test('an operation that may already have been written comes back as dispatched, not queued', async () => {
+  // The invariant: recovery never promotes ambiguous work to "safe to send again". Only an
+  // operation that provably never left this machine (`queued`) may be written on resume.
   stubStorage();
   await saveBatch({
     kind: 'remove',
@@ -56,12 +57,12 @@ test('an interrupted operation comes back queued, with its retries reset', async
   });
   const b = await loadBatch();
   assert.deepEqual(
-    b!.ops.map((o) => [o.id, o.state, o.attempts]),
+    b!.ops.map((o) => [o.id, o.state]),
     [
-      [chatId('a'), 'done', 1],
-      [chatId('b'), 'queued', 0],
-      [chatId('c'), 'queued', 0],
-      [chatId('d'), 'queued', 0],
+      [chatId('a'), 'done'],
+      [chatId('b'), 'dispatched'],
+      [chatId('c'), 'dispatched'],
+      [chatId('d'), 'queued'],
     ],
   );
 });
@@ -91,7 +92,9 @@ test('clearBatch removes the record', async () => {
   assert.equal(await loadBatch(), null);
 });
 
-test('resume skips durably recorded done states; ambiguous running work still replays (F04)', async () => {
+test('a resume never repeats a write whose outcome the server already shows', async () => {
+  // The case the invariant exists for: the tab died after the delete reached the server but
+  // before `done` was persisted. Resume must settle it by READING, not by deleting again.
   stubStorage();
   const calls: string[] = [];
   const adapter: ConversationAdapter = {
@@ -100,7 +103,6 @@ test('resume skips durably recorded done states; ambiguous running work still re
     archive: async () => {},
     remove: async (id) => void calls.push(id),
   };
-  // Simulates: 2 deleted, 1 killed mid-flight, 1 never started.
   await saveBatch({
     kind: 'remove',
     startedAt: 1,
@@ -109,13 +111,58 @@ test('resume skips durably recorded done states; ambiguous running work still re
   const b = await loadBatch();
   const q = OperationQueue.restore(b!.kind, b!.ops, {
     adapter,
-    verify: async () => ({ state: 'deleted' }),
+    verify: async () => ({ state: 'deleted' }), // the server says c is already gone
     sleep: async () => {},
   });
   await q.run();
 
-  assert.deepEqual(calls, ['c', 'd'].map(chatId), 'a and b must not be deleted a second time');
-  assert.equal(q.done, 4);
+  assert.deepEqual(calls, [chatId('d')], 'only the operation that never left this machine is sent');
+  assert.equal(q.done, 4, 'and the reconciled one still counts as done');
+});
+
+test('a dispatched write that provably did NOT land is sent, once', async () => {
+  stubStorage();
+  const calls: string[] = [];
+  const adapter: ConversationAdapter = {
+    name: 'fake',
+    listVisibleConversations: async () => [],
+    archive: async () => {},
+    remove: async (id) => void calls.push(id),
+  };
+  await saveBatch({ kind: 'remove', startedAt: 1, ops: [op('c', 'running')] });
+  const b = await loadBatch();
+  let reads = 0;
+  const q = OperationQueue.restore(b!.kind, b!.ops, {
+    adapter,
+    // First read proves it is untouched; after the write it reads as deleted.
+    verify: async () => (reads++ === 0 ? { state: 'present', archived: false } : { state: 'deleted' }),
+    sleep: async () => {},
+  });
+  await q.run();
+  assert.deepEqual(calls, [chatId('c')]);
+  assert.equal(q.done, 1);
+});
+
+test('a dispatched write with an unknowable outcome is reported, never repeated', async () => {
+  stubStorage();
+  const calls: string[] = [];
+  const adapter: ConversationAdapter = {
+    name: 'fake',
+    listVisibleConversations: async () => [],
+    archive: async () => {},
+    remove: async (id) => void calls.push(id),
+  };
+  await saveBatch({ kind: 'remove', startedAt: 1, ops: [op('c', 'running')] });
+  const b = await loadBatch();
+  const q = OperationQueue.restore(b!.kind, b!.ops, {
+    adapter,
+    verify: async () => ({ state: 'error', code: 500 }), // cannot tell either way
+    sleep: async () => {},
+  });
+  await q.run();
+  assert.deepEqual(calls, [], 'an unresolvable operation is never written again');
+  assert.equal(q.failed.length, 1);
+  assert.match(q.failed[0].error!, /outcome could not be established/);
 });
 
 test('already deleted satisfies delete, but must never be reported as archived', async () => {

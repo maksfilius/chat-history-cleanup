@@ -6,6 +6,7 @@ import { projectGroups, selectAll, selectRange } from '../cleanup/selection.ts';
 import { extensionAlive } from '../storage/local.ts';
 import { loadProtected, setProtected } from '../storage/protectedChats.ts';
 import { OperationQueue, type OpKind, type Operation } from '../queue/operationQueue.ts';
+import { acquireLease, HEARTBEAT_MS, newOwnerId, releaseLease, renewLease } from '../queue/lease.ts';
 import { clearBatch, loadRestorePoint, saveBatch } from '../queue/persistence.ts';
 import type { Conversation } from '../types/conversation.ts';
 
@@ -89,6 +90,15 @@ export function createUi(): HTMLElement {
   root.innerHTML = `<style>${CSS}</style><button class="cc-open">Clean up</button>`;
 
   const selected = new Set<string>();
+  /** Identifies this panel as a batch owner, so two tabs cannot run the same work. */
+  const ownerId = newOwnerId();
+  /**
+   * Guards the same page against itself. The lease stops a *different* tab, but closing and
+   * reopening the panel reuses this closure and its owner id, so the lease would happily be
+   * re-taken and a second worker would run over the first. This outlives an opening because it
+   * lives here rather than inside open().
+   */
+  let batchInFlight = false;
   let inventory: Inventory | null = null;
 
   const openBtn = root.querySelector('.cc-open') as HTMLButtonElement;
@@ -394,12 +404,41 @@ export function createUi(): HTMLElement {
 
     /** Shared by a fresh batch and a resumed one, so both persist and report identically. */
     async function runQueue(queue: OperationQueue, kind: OpKind, startedAt: number) {
+      // One writer at a time across every tab. Two panels running the same restored batch would
+      // overwrite each other's progress and could send the same delete twice.
+      if (batchInFlight) {
+        warn.hidden = false;
+        warn.textContent =
+          'A cleanup is already running in this tab. Wait for it to finish or stop it first — ' +
+          'nothing was started twice.';
+        return;
+      }
+      if (!(await acquireLease(ownerId))) {
+        warn.hidden = false;
+        warn.textContent =
+          'Another ChatGPT tab is already running a cleanup. Finish or stop it there, then ' +
+          'reopen this panel. Nothing was changed here.';
+        return;
+      }
+      batchInFlight = true;
+      const heartbeat = setInterval(() => {
+        void renewLease(ownerId).then((held) => {
+          if (!held) queue.stop(); // someone took over; stop rather than double-write
+        });
+      }, HEARTBEAT_MS);
+
       const view = progressView(el, kind, queue.ops.length, restoreList);
       reportOpen = true;
       queueView = view;
       queue.ops.forEach((o) => selected.delete(o.id));
       view.onStop(() => queue.stop());
-      await queue.run();
+      try {
+        await queue.run();
+      } finally {
+        batchInFlight = false;
+        clearInterval(heartbeat);
+        await releaseLease(ownerId);
+      }
       // Keep the record while anything is still pending (the user stopped it); drop it once
       // every operation has settled, so a finished batch can never be resumed by accident.
       if (queue.pending === 0) await clearBatch();
@@ -416,6 +455,10 @@ export function createUi(): HTMLElement {
       return {
         adapter: apiAdapter,
         verify,
+        // Awaited before each write: an intent we could not record is one we could not tell
+        // from an unsent write on the next open, and the queue stops rather than risk that.
+        persist: (ops: readonly Operation[]) =>
+          saveBatch({ kind, startedAt, ops: [...ops] as Operation[] }),
         onChange: (ops: readonly Operation[]) => {
           queueView?.update(ops);
           // Written on every transition so a crash mid-batch loses at most one operation's
@@ -600,7 +643,11 @@ function progressView(host: HTMLElement, kind: OpKind, total: number, onBack: ()
         stat.textContent = 'Stopping after the current conversation…';
       };
     },
-    finish(done: number, failed: Operation[], haltedBy?: 'rate-limit' | 'signed-out' | null) {
+    finish(
+      done: number,
+      failed: Operation[],
+      haltedBy?: 'rate-limit' | 'signed-out' | 'no-durable-state' | null,
+    ) {
       // Failures are listed, never silently swallowed.
       stat.textContent = `Done: ${done} ${kind === 'archive' ? 'archived' : 'deleted'}` +
         (failed.length ? `, ${failed.length} failed` : '');
@@ -612,8 +659,11 @@ function progressView(host: HTMLElement, kind: OpKind, total: number, onBack: ()
           haltedBy === 'rate-limit'
             ? 'ChatGPT rate-limited the account, so the batch stopped. Nothing was lost — ' +
               'wait a few minutes, reopen this panel and resume.'
-            : 'Your ChatGPT session ended, so the batch stopped. Reload the page, sign in, ' +
-              'then reopen this panel and resume.';
+            : haltedBy === 'signed-out'
+              ? 'Your ChatGPT session ended, so the batch stopped. Reload the page, sign in, ' +
+                'then reopen this panel and resume.'
+              : 'Progress could not be saved, so the batch stopped before doing more work. ' +
+                'Reload the page and start again — nothing is left half-finished.';
         el.append(halt);
       }
       fails.replaceChildren(

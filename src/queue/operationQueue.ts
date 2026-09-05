@@ -3,7 +3,12 @@ import type { ConversationAdapter } from '../types/conversation.ts';
 import { isConversationId } from '../types/identifiers.ts';
 
 export type OpKind = 'archive' | 'remove';
-export type OpState = 'queued' | 'running' | 'retry_wait' | 'done' | 'failed';
+/**
+ * `dispatched` is the durable record that a destructive write LEFT THIS MACHINE and its outcome
+ * is not yet known. It is what makes recovery safe: a dispatched operation is reconciled by
+ * reading, never by writing again.
+ */
+export type OpState = 'queued' | 'dispatched' | 'running' | 'retry_wait' | 'done' | 'failed';
 
 export interface Operation {
   readonly id: string;
@@ -18,6 +23,12 @@ export interface Operation {
 export interface QueueDeps {
   adapter: ConversationAdapter;
   verify: (id: string) => Promise<VerifyResult>;
+  /**
+   * Must durably record the current operations before the queue sends a destructive write.
+   * Returning false stops the batch: work whose intent cannot be recorded cannot be recovered,
+   * and continuing would risk repeating it.
+   */
+  persist?: (ops: readonly Operation[]) => Promise<boolean>;
   /** Injected so tests do not actually wait out the backoff. */
   sleep?: (ms: number) => Promise<void>;
   onChange?: (ops: readonly Operation[]) => void;
@@ -36,10 +47,12 @@ export function validOperations(value: unknown, kind: unknown): value is Operati
     if (!op || typeof op !== 'object') return false;
     const o = op as Record<string, unknown>;
     if (!isConversationId(o.id) || seen.has(o.id) || o.kind !== kind || typeof o.title !== 'string' ||
-      typeof o.state !== 'string' || !['queued', 'running', 'retry_wait', 'done', 'failed'].includes(o.state) ||
+      typeof o.state !== 'string' ||
+      !['queued', 'dispatched', 'running', 'retry_wait', 'done', 'failed'].includes(o.state) ||
       !Number.isSafeInteger(o.attempts) || (o.attempts as number) < 0 || (o.attempts as number) > MAX_ATTEMPTS ||
       (o.error !== undefined && typeof o.error !== 'string')) return false;
-    if ((o.state === 'running' || o.state === 'retry_wait') && o.attempts === 0) return false;
+    if ((o.state === 'running' || o.state === 'retry_wait' || o.state === 'dispatched') &&
+      o.attempts === 0) return false;
     if (o.state === 'retry_wait' && o.attempts === MAX_ATTEMPTS) return false;
     seen.add(o.id);
     return true;
@@ -69,7 +82,7 @@ export class OperationQueue {
   }
   readonly kind: OpKind;
   /** Set when the batch halted itself rather than being stopped by the user. */
-  haltedBy: 'rate-limit' | 'signed-out' | null = null;
+  haltedBy: 'rate-limit' | 'signed-out' | 'no-durable-state' | null = null;
   private deps: QueueDeps;
   private stopped = false;
   private running = false;
@@ -118,7 +131,7 @@ export class OperationQueue {
    * the batch failing every remaining item. Instead we stop, keep everything resumable, and
    * let the user come back in a few minutes.
    */
-  private halt(op: Operation, reason: 'rate-limit' | 'signed-out') {
+  private halt(op: Operation, reason: 'rate-limit' | 'signed-out' | 'no-durable-state') {
     op.state = 'queued';
     op.attempts = 0;
     this.haltedBy = reason;
@@ -147,10 +160,21 @@ export class OperationQueue {
   private async runOne(op: Operation): Promise<void> {
     const sleep = this.deps.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
 
+    // Resumed work whose write already left this machine is reconciled by reading. Re-sending
+    // it would be the replay this state exists to prevent.
+    if (op.state === 'dispatched' && !(await this.reconcile(op))) return;
+
     while (op.attempts < MAX_ATTEMPTS) {
+      if (this.stopped) return; // Stop requested during backoff must not dispatch again.
       op.attempts++;
-      op.state = 'running';
+
+      // Record the intent BEFORE the write, and refuse to continue if it cannot be recorded:
+      // an unrecorded destructive write is one we could not tell from an unsent one later.
+      op.state = 'dispatched';
       this.emit();
+      if (this.deps.persist && !(await this.deps.persist(this.snapshot()))) {
+        return this.halt(op, 'no-durable-state');
+      }
 
       try {
         const act = op.kind === 'archive' ? this.deps.adapter.archive : this.deps.adapter.remove;
@@ -179,16 +203,11 @@ export class OperationQueue {
       }
 
       // The write returned 2xx. Trust nothing until the detail endpoint agrees.
-      // Typed as VerifyResult rather than inferred: `as const` here pinned `code` to the
-      // literal 0, which makes `v.code === 429` look like a comparison that can never be true.
-      const fallback: VerifyResult = { state: 'error', code: 0 };
-      const v: VerifyResult = await this.deps.verify(op.id).catch(() => fallback);
+      const v = await this.read(op);
       if (settledOk(op.kind, v)) return this.settle(op, 'done');
 
-      // The read-back failed for an account-level reason, not a per-conversation one. Retrying
-      // here would re-issue a destructive action we already sent, four times over, and then
-      // fail every remaining conversation against the same wall. Halt instead: the batch stays
-      // resumable, but the current resume path still reissues the action (audit F04).
+      // The read-back failed for an account-level reason, not a per-conversation one. Halting
+      // keeps the operation `dispatched`, so the resume path reconciles it instead of resending.
       if (v.state === 'error' && (v.code === 429 || v.code === 401 || v.code === 403)) {
         return this.halt(op, v.code === 429 ? 'rate-limit' : 'signed-out');
       }
@@ -198,6 +217,10 @@ export class OperationQueue {
         return this.settle(op, 'failed', unconfirmed(op.kind, v));
       }
 
+      // The write may or may not have landed and we cannot tell. Re-sending it is exactly the
+      // replay we are avoiding, so ask again rather than act again.
+      if (!(await this.reconcile(op))) return;
+
       if (op.attempts >= MAX_ATTEMPTS) {
         return this.settle(op, 'failed', unconfirmed(op.kind, v));
       }
@@ -205,6 +228,39 @@ export class OperationQueue {
       this.emit();
       await sleep(backoffMs(op.attempts));
     }
+  }
+
+  private read(op: Operation): Promise<VerifyResult> {
+    const unknown: VerifyResult = { state: 'error', code: 0 };
+    return this.deps.verify(op.id).catch(() => unknown);
+  }
+
+  /**
+   * Decides an operation whose write may already have landed, using reads only.
+   *
+   * Returns true when the caller may safely send the write (the read proved it was NOT
+   * applied). Otherwise the operation has been settled here — as done if the read proves the
+   * outcome, or as failed when the outcome cannot be established. An unresolvable operation is
+   * reported, never repeated.
+   */
+  private async reconcile(op: Operation): Promise<boolean> {
+    const v = await this.read(op);
+    if (settledOk(op.kind, v)) {
+      this.settle(op, 'done');
+      return false;
+    }
+    // Proven untouched: the conversation is still there, and still not in the target state.
+    if (v.state === 'present' && (op.kind === 'remove' || v.archived !== true)) return true;
+    if (v.state === 'error' && (v.code === 429 || v.code === 401 || v.code === 403)) {
+      this.halt(op, v.code === 429 ? 'rate-limit' : 'signed-out');
+      return false;
+    }
+    this.settle(op, 'failed', `outcome could not be established; not repeated (${unconfirmed(op.kind, v)})`);
+    return false;
+  }
+
+  private snapshot(): readonly Operation[] {
+    return this.operations.map((o) => ({ ...o }));
   }
 
   private settle(op: Operation, state: 'done' | 'failed', error?: string) {

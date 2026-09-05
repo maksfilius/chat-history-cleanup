@@ -4,6 +4,7 @@ import { apiAdapter, endpoints, forgetToken, mapApiItem, verify, ApiError } from
 import { parseConversationHref } from '../src/chatgpt/selectors.ts';
 import { domAdapter } from '../src/chatgpt/dom.ts';
 import { protectionMap } from '../src/cleanup/protections.ts';
+import { loadProtected, setProtected } from '../src/storage/protectedChats.ts';
 import { projectGroups, selectAll } from '../src/cleanup/selection.ts';
 import { OperationQueue, type Operation } from '../src/queue/operationQueue.ts';
 import { clearBatch, loadBatch, loadRestorePoint, saveBatch } from '../src/queue/persistence.ts';
@@ -245,4 +246,34 @@ test('discard reports failure when storage is gone, instead of claiming success'
     },
   };
   assert.equal(await clearBatch(), false);
+});
+
+test('concurrent protection toggles do not lose ids', async () => {
+  // Read-modify-write: two overlapping toggles each read the pre-change set, and the later
+  // write silently dropped the earlier id — losing a protection the user deliberately set.
+  const mem: Record<string, unknown> = {};
+  let inFlight = 0;
+  let overlapped = false;
+  (globalThis as { chrome?: unknown }).chrome = {
+    runtime: { id: 'test-extension' },
+    storage: {
+      local: {
+        get: async (k: string) => {
+          if (inFlight > 0) overlapped = true;
+          inFlight++;
+          await new Promise((r) => setTimeout(r, 1)); // widen the window
+          inFlight--;
+          return k in mem ? { [k]: mem[k] } : {};
+        },
+        set: async (o: Record<string, unknown>) => void Object.assign(mem, o),
+        remove: async (k: string) => void delete mem[k],
+      },
+    },
+  };
+
+  const ids = [chatId(1), chatId(2), chatId(3), chatId(4)];
+  await Promise.all(ids.map((id) => setProtected(id, true)));
+
+  assert.equal(overlapped, false, 'writes must be serialized, not interleaved');
+  assert.deepEqual([...(await loadProtected())].sort(), [...ids].sort());
 });
