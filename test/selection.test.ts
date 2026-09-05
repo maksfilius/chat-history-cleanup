@@ -58,3 +58,24 @@ test('project groups list only projects that hold conversations', () => {
     { id: 'g-p-2', name: 'Project Two', ids: ['q1'] },
   ]);
 });
+
+test('a shift-range spans what is rendered, not the whole inventory', () => {
+  // With folders collapsed, render order and inventory order differ. A range computed over the
+  // inventory would sweep up rows the user cannot see — the opposite of predictable.
+  const rendered = [chat('loose-1'), chat('loose-2'), chat('p1', 'g-p-1')];
+  const r = selectRange(rendered, 0, 2, new Map([['p1', 'in a project']]));
+  assert.deepEqual(r.ids, ['loose-1', 'loose-2'], 'only visible, unprotected rows');
+  assert.equal(r.skipped, 1);
+});
+
+test('project grouping keeps every conversation reachable exactly once', () => {
+  const convs = [chat('a'), chat('p1', 'g-p-1'), chat('p2', 'g-p-1'), chat('q1', 'g-p-2')];
+  const groups = projectGroups(convs, [
+    { id: 'g-p-1', name: 'One' },
+    { id: 'g-p-2', name: 'Two' },
+  ]);
+  const grouped = groups.flatMap((g) => g.ids);
+  const loose = convs.filter((c) => !grouped.includes(c.id)).map((c) => c.id);
+  assert.deepEqual(loose, ['a'], 'chats outside a project stay in the main list');
+  assert.deepEqual([...grouped].sort(), ['p1', 'p2', 'q1'], 'and each project chat appears once');
+});

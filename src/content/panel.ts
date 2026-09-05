@@ -36,8 +36,19 @@ const CSS = `
 .cc-sel{flex:1;color:#9b9b9b}
 .cc-selrow button{background:none;border:none;color:#7bb0ff;cursor:pointer;padding:0;font:inherit}
 .cc-note{margin-top:6px;color:#8b8b8b;font-size:12px;white-space:pre-line}
-.cc-projects{padding:8px 14px;border-bottom:1px solid #2c2c2c;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.cc-projects .cc-lbl{width:100%;color:#9b9b9b;font-size:12px;margin-bottom:2px}
+.cc-grp{display:flex;align-items:center;gap:8px;padding:9px 14px 7px;border-top:1px solid #2c2c2c;
+ background:#1c1c1c;cursor:pointer;position:sticky;top:0}
+.cc-grp:hover{background:#222}
+.cc-grp-chev{flex:none;width:9px;height:9px;position:relative}
+.cc-grp-chev::before{content:"";position:absolute;top:1px;left:1px;width:5px;height:5px;
+ border-right:1.6px solid #9b9b9b;border-bottom:1.6px solid #9b9b9b;
+ transform:rotate(-45deg);transition:transform .12s ease}
+.cc-grp[aria-expanded="true"] .cc-grp-chev::before{transform:rotate(45deg);top:0;left:0}
+.cc-grp:hover .cc-grp-chev::before{border-color:#ececec}
+.cc-grp-name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cc-grp-meta{color:#8b8b8b;font-size:12px;flex:1;white-space:nowrap}
+.cc-grp button{background:none;border:none;color:#7bb0ff;cursor:pointer;padding:0;font:inherit;flex:none}
+.cc-row.cc-in-grp{padding-left:32px}
 .cc-chip{padding:4px 9px;border-radius:999px;border:1px solid #3a3a3a;background:#222;color:#d4d4d4;cursor:pointer;font:12px system-ui,sans-serif}
 .cc-chip[aria-pressed="true"]{background:#2f4f43;border-color:#4a8;color:#dff}
 .cc-chip:disabled{opacity:.35;cursor:not-allowed}
@@ -117,7 +128,6 @@ export function createUi(): HTMLElement {
           <button class="cc-none" hidden>Clear</button><button class="cc-all">Select all</button></div>
         <div class="cc-note" hidden></div>
       </div>
-      <div class="cc-projects" hidden><span class="cc-lbl">Select all chats in a project</span></div>
       <div class="cc-list"></div>
       <div class="cc-ft"><button disabled>Archive</button><button disabled>Delete…</button></div>`;
     root.appendChild(el);
@@ -127,7 +137,6 @@ export function createUi(): HTMLElement {
     const selCount = el.querySelector('.cc-sel') as HTMLElement;
     const note = el.querySelector('.cc-note') as HTMLElement;
     const clearBtn = el.querySelector('.cc-none') as HTMLButtonElement;
-    const projectBar = el.querySelector('.cc-projects') as HTMLElement;
     const warn = el.querySelector('.cc-warn') as HTMLElement;
     let [archiveBtn, deleteBtn] = [...el.querySelectorAll('.cc-ft button')] as HTMLButtonElement[];
     (el.querySelector('.cc-x') as HTMLElement).onclick = () => {
@@ -140,8 +149,13 @@ export function createUi(): HTMLElement {
     // A previous opening's inventory must not enable actions before this opening's storage
     // and protection reads succeed, especially when a persisted batch fails validation.
     let ready = false;
-    /** Row index of the last checkbox the user clicked, for shift-range selection. */
+    /** Row index of the last checkbox the user clicked, within the RENDERED order. */
     let anchor: number | null = null;
+    /** Expanded project groups. Collapsed by default: most rows in a project account are
+     *  project rows, and an account is easier to read as folders than as one long list. */
+    const expanded = new Set<string>();
+    /** Exactly the conversations currently drawn, in draw order — what a shift-range spans. */
+    let visible: Conversation[] = [];
 
     const conversations = () => inventory?.conversations ?? [];
 
@@ -156,7 +170,6 @@ export function createUi(): HTMLElement {
       total.textContent = plural(conversations().length, 'conversation');
       selCount.textContent = `${selected.size} selected`;
       clearBtn.hidden = selected.size === 0;
-      renderProjects();
     };
 
     const refreshSummary = () => {
@@ -202,37 +215,6 @@ export function createUi(): HTMLElement {
       render();
     };
 
-    const renderProjects = () => {
-      const groups = projectGroups(conversations(), inventory?.projects ?? []);
-      projectBar.hidden = groups.length === 0;
-      projectBar.replaceChildren(projectBar.firstElementChild!);
-      for (const g of groups) {
-        const b = document.createElement('button');
-        b.className = 'cc-chip';
-        b.textContent = g.name;
-        // Wording is deliberate: this selects the project's conversations. It never touches
-        // the project itself, which this extension cannot and must not delete.
-        b.title = `Select ${plural(g.ids.length, 'chat')} in "${g.name}"`;
-        const n = document.createElement('b');
-        n.textContent = String(g.ids.length);
-        b.append(n);
-        b.onclick = () => {
-          const allSelected = g.ids.every((id) => selected.has(id));
-          if (allSelected) {
-            for (const id of g.ids) selected.delete(id);
-            setNote(`Deselected ${plural(g.ids.length, 'chat')} in "${g.name}"`);
-            anchor = null;
-            render();
-          } else {
-            // Chats in a project are protected, so this is an explicit override: the user
-            // asked for this project by name. The confirm dialog still spells it out.
-            applyBulk({ ids: g.ids, skipped: 0 }, ` in "${g.name}"`);
-          }
-        };
-        projectBar.append(b);
-      }
-    };
-
     const render = () => {
       if (!inventory || !ready) return;
       paintSummary();
@@ -245,22 +227,36 @@ export function createUi(): HTMLElement {
       archiveBtn.textContent = selected.size ? `Archive ${selected.size}` : 'Archive';
       deleteBtn.textContent = selected.size ? `Delete ${selected.size}…` : 'Delete…';
 
+      // Loose chats first — they are the ordinary cleanup work — then one folder per project.
       const convs = conversations();
-      list.replaceChildren(
-        ...convs.map((c, index) =>
+      const groups = projectGroups(convs, inventory.projects);
+      const inAGroup = new Set(groups.flatMap((g) => g.ids));
+      const byId = new Map(convs.map((c) => [c.id, c]));
+      const recency = (g: { ids: string[] }) =>
+        Math.max(...g.ids.map((id) => byId.get(id)?.updatedAt ?? 0));
+      groups.sort((a, b) => recency(b) - recency(a));
+
+      const nodes: HTMLElement[] = [];
+      visible = [];
+
+      const emit = (c: Conversation, inGroup: boolean) => {
+        const index = visible.length;
+        visible.push(c);
+        nodes.push(
           row(
             c,
             {
               checked: selected.has(c.id),
               protectedBy: protectedBy.get(c.id),
               manual: manual.has(c.id),
+              inGroup,
             },
             (on, shift) => {
               if (shift && anchor !== null) {
-                // Range select. Protected conversations inside the range are left out —
-                // predictable safety beats clever behaviour on a destructive tool.
-                const r = selectRange(convs, anchor, index, protectedBy);
-                applyBulk(r, '');
+                // The range spans what the user can actually see, not the underlying
+                // inventory: with folders collapsed the two orders are different, and a
+                // range that swept up hidden rows would be a nasty surprise.
+                applyBulk(selectRange(visible, anchor, index, protectedBy), '');
                 return;
               }
               on ? selected.add(c.id) : selected.delete(c.id);
@@ -272,11 +268,42 @@ export function createUi(): HTMLElement {
               const r = await setProtected(c.id, !manual.has(c.id));
               manual = r.ids;
               if (!r.saved) warnStorageLost();
-              refresh(); // protection may change what "select all" would now skip
+              refresh();
             },
           ),
-        ),
-      );
+        );
+      };
+
+      for (const c of convs) if (!inAGroup.has(c.id)) emit(c, false);
+
+      for (const g of groups) {
+        const open = expanded.has(g.id);
+        const chosenHere = g.ids.filter((id) => selected.has(id)).length;
+        nodes.push(
+          groupHeader(g, open, chosenHere, () => {
+            open ? expanded.delete(g.id) : expanded.add(g.id);
+            anchor = null;
+            render();
+          }, () => {
+            if (chosenHere === g.ids.length) {
+              for (const id of g.ids) selected.delete(id);
+              setNote(`Deselected ${plural(g.ids.length, 'chat')} in "${g.name}"`);
+              anchor = null;
+              render();
+            } else {
+              // Chats in a project are protected, so choosing the folder by name is an
+              // explicit override. The confirmation still spells that out before anything runs.
+              applyBulk({ ids: g.ids, skipped: 0 }, ` in "${g.name}"`);
+            }
+          }),
+        );
+        if (open) for (const id of g.ids) {
+          const c = byId.get(id);
+          if (c) emit(c, true);
+        }
+      }
+
+      list.replaceChildren(...nodes);
     };
 
     (el.querySelector('.cc-all') as HTMLElement).onclick = () => {
@@ -522,12 +549,13 @@ const PROTECTION_TAG: Record<string, string> = {
 
 function row(
   c: Conversation,
-  st: { checked: boolean; protectedBy?: string; manual: boolean },
+  st: { checked: boolean; protectedBy?: string; manual: boolean; inGroup?: boolean },
   onToggle: (on: boolean, shift: boolean) => void,
   onLock: () => void,
 ): HTMLElement {
   const el = document.createElement('label');
-  el.className = st.protectedBy ? 'cc-row cc-prot' : 'cc-row';
+  el.className =
+    (st.protectedBy ? 'cc-row cc-prot' : 'cc-row') + (st.inGroup ? ' cc-in-grp' : '');
 
   const box = document.createElement('input');
   box.type = 'checkbox';
@@ -567,7 +595,9 @@ function row(
   }
 
   // One badge says why a row is skipped by bulk gestures; `archived` is informational.
-  const tag = st.protectedBy ? (PROTECTION_TAG[st.protectedBy] ?? 'protected') : '';
+  // Inside a folder the `project` badge only repeats the heading above it.
+  const reason = st.inGroup && st.protectedBy === 'in a project' ? '' : st.protectedBy;
+  const tag = reason ? (PROTECTION_TAG[reason] ?? 'protected') : '';
   for (const label of [tag, c.archived ? 'archived' : '']) {
     if (!label) continue;
     const t = document.createElement('span');
@@ -576,6 +606,54 @@ function row(
     el.append(t);
   }
   el.append(age);
+  return el;
+}
+
+/**
+ * A project rendered as a folder: its name, how many chats it holds, and one control that
+ * selects or deselects all of them. Chats in a project are protected, so this is the explicit
+ * way to reach them — the confirmation still names the override before anything runs.
+ */
+function groupHeader(
+  g: { id: string; name: string; ids: string[] },
+  open: boolean,
+  chosen: number,
+  onToggle: () => void,
+  onSelect: () => void,
+): HTMLElement {
+  const el = document.createElement('div');
+  el.className = 'cc-grp';
+  el.setAttribute('role', 'button');
+  el.setAttribute('aria-expanded', String(open));
+  el.title = open ? `Collapse "${g.name}"` : `Show the chats in "${g.name}"`;
+  el.onclick = onToggle;
+
+  // Drawn with a border rather than a glyph: ▸ renders as a near-invisible speck at this size,
+  // so the folder gave no sign of whether it was open.
+  const chev = document.createElement('span');
+  chev.className = 'cc-grp-chev';
+
+  const name = document.createElement('span');
+  name.className = 'cc-grp-name';
+  name.textContent = g.name;
+
+  const meta = document.createElement('span');
+  meta.className = 'cc-grp-meta';
+  meta.textContent =
+    `${plural(g.ids.length, 'chat')} · protected` + (chosen ? ` · ${chosen} selected` : '');
+
+  const act = document.createElement('button');
+  const all = chosen === g.ids.length;
+  act.textContent = all ? 'Deselect' : `Select ${g.ids.length}`;
+  act.title = all
+    ? `Deselect the chats in "${g.name}"`
+    : `Select all ${plural(g.ids.length, 'chat')} in "${g.name}"`;
+  act.onclick = (e) => {
+    e.stopPropagation(); // the header row toggles the folder; this button does not
+    onSelect();
+  };
+
+  el.append(chev, name, meta, act);
   return el;
 }
 
