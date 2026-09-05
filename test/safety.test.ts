@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { apiAdapter, endpoints, forgetToken, mapApiItem, verify, ApiError } from '../src/chatgpt/api.ts';
 import { parseConversationHref } from '../src/chatgpt/selectors.ts';
@@ -300,4 +301,23 @@ test('an ordinary account is not protected into uselessness', () => {
   // And a payload that genuinely omits the fields is still protected.
   const silent = mapApiItem({ id: chatId(4), title: 'x', create_time: null, update_time: null } as never);
   assert.equal(protectionMap([silent], new Set()).get(chatId(4)), 'metadata unavailable');
+});
+
+test('every protection reason has a badge and an explanation', async () => {
+  // A row that is skipped must always say why. An unlabelled reason would silently render as
+  // a mystery badge, which is the opposite of the point.
+  const source = await readFile(new URL('../src/content/panel.ts', import.meta.url), 'utf8');
+  const reasons = ['in a project', 'pinned', 'set by you', 'metadata unavailable'];
+  for (const r of reasons) {
+    assert.ok(source.includes(`'${r}'`) || source.includes(`  ${r}:`), `${r} needs a badge`);
+  }
+  // These are exactly the reasons protectionFor can return — keep the two lists in step.
+  const prot = await readFile(new URL('../src/cleanup/protections.ts', import.meta.url), 'utf8');
+  for (const r of reasons) {
+    assert.ok(prot.includes(`'${r}'`), `${r} is no longer produced; drop its badge too`);
+  }
+  const produced = [...prot.matchAll(/return '([a-z ]+)';/g)].map((m) => m[1]);
+  for (const r of produced) {
+    assert.ok(reasons.includes(r), `protectionFor returns "${r}" with no badge defined`);
+  }
 });

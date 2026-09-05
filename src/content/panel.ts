@@ -39,12 +39,14 @@ const CSS = `
 .cc-grp{display:flex;align-items:center;gap:8px;padding:9px 14px 7px;border-top:1px solid #2c2c2c;
  background:#1c1c1c;cursor:pointer;position:sticky;top:0}
 .cc-grp:hover{background:#222}
-.cc-grp-chev{flex:none;width:9px;height:9px;position:relative}
-.cc-grp-chev::before{content:"";position:absolute;top:1px;left:1px;width:5px;height:5px;
- border-right:1.6px solid #9b9b9b;border-bottom:1.6px solid #9b9b9b;
- transform:rotate(-45deg);transition:transform .12s ease}
-.cc-grp[aria-expanded="true"] .cc-grp-chev::before{transform:rotate(45deg);top:0;left:0}
+.cc-grp-chev{flex:none;width:14px;height:14px;position:relative}
+.cc-grp-chev::before{content:"";position:absolute;top:3px;left:3px;width:7px;height:7px;
+ border-right:2px solid #b4b4b4;border-bottom:2px solid #b4b4b4;
+ transform:rotate(-45deg);transform-origin:60% 60%;transition:transform .13s ease}
+.cc-grp[aria-expanded="true"] .cc-grp-chev::before{transform:rotate(45deg)}
 .cc-grp:hover .cc-grp-chev::before{border-color:#ececec}
+.cc-grp-hint{color:#7a7a7a;font-size:12px;flex:none}
+.cc-grp:hover .cc-grp-hint{color:#9b9b9b}
 .cc-grp-name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cc-grp-meta{color:#8b8b8b;font-size:12px;flex:1;white-space:nowrap}
 .cc-grp button{background:none;border:none;color:#7bb0ff;cursor:pointer;padding:0;font:inherit;flex:none}
@@ -539,12 +541,31 @@ export function createUi(): HTMLElement {
   return host;
 }
 
-/** Short badge for each protection reason. One label, no duplicated prose next to it. */
-const PROTECTION_TAG: Record<string, string> = {
-  'in a project': 'project',
-  pinned: 'pinned',
-  'set by you': 'you',
-  'metadata unavailable': 'unverified',
+/**
+ * Every reason a conversation is skipped by bulk selection, as a short badge plus the
+ * sentence behind it. There are exactly four; anything else would be a bug, so an unknown
+ * reason falls back to a visible `protected` rather than disappearing.
+ *
+ * `locked` deliberately echoes the padlock control that sets it — the earlier `you` named the
+ * owner of the decision instead of the state, which told the reader nothing.
+ */
+const PROTECTION_TAG: Record<string, { tag: string; why: string }> = {
+  'in a project': {
+    tag: 'project',
+    why: 'In a ChatGPT Project. Bulk selection skips it — you can still tick it by hand.',
+  },
+  pinned: {
+    tag: 'pinned',
+    why: 'Pinned in ChatGPT. Bulk selection skips it — you can still tick it by hand.',
+  },
+  'set by you': {
+    tag: 'locked',
+    why: 'You locked this chat here. Click the padlock to unlock it.',
+  },
+  'metadata unavailable': {
+    tag: 'unverified',
+    why: 'ChatGPT did not report whether this chat is pinned or in a Project, so it is skipped to be safe.',
+  },
 };
 
 function row(
@@ -597,12 +618,14 @@ function row(
   // One badge says why a row is skipped by bulk gestures; `archived` is informational.
   // Inside a folder the `project` badge only repeats the heading above it.
   const reason = st.inGroup && st.protectedBy === 'in a project' ? '' : st.protectedBy;
-  const tag = reason ? (PROTECTION_TAG[reason] ?? 'protected') : '';
-  for (const label of [tag, c.archived ? 'archived' : '']) {
-    if (!label) continue;
+  const badges: { tag: string; why: string }[] = [];
+  if (reason) badges.push(PROTECTION_TAG[reason] ?? { tag: 'protected', why: reason });
+  if (c.archived) badges.push({ tag: 'archived', why: 'Already archived in ChatGPT.' });
+  for (const b of badges) {
     const t = document.createElement('span');
     t.className = 'cc-tag';
-    t.textContent = label;
+    t.textContent = b.tag;
+    t.title = b.why; // the badge is short; the sentence is one hover away
     el.append(t);
   }
   el.append(age);
@@ -642,18 +665,28 @@ function groupHeader(
   meta.textContent =
     `${plural(g.ids.length, 'chat')} · protected` + (chosen ? ` · ${chosen} selected` : '');
 
-  const act = document.createElement('button');
-  const all = chosen === g.ids.length;
-  act.textContent = all ? 'Deselect' : `Select ${g.ids.length}`;
-  act.title = all
-    ? `Deselect the chats in "${g.name}"`
-    : `Select all ${plural(g.ids.length, 'chat')} in "${g.name}"`;
-  act.onclick = (e) => {
-    e.stopPropagation(); // the header row toggles the folder; this button does not
-    onSelect();
-  };
+  el.append(chev, name, meta);
 
-  el.append(chev, name, meta, act);
+  if (open) {
+    // Only an opened folder offers to select its chats. On a closed one the button made the
+    // folder read as a single action, and hid the fact that you can look inside first.
+    const act = document.createElement('button');
+    const all = chosen === g.ids.length;
+    act.textContent = all ? 'Deselect all' : `Select all ${g.ids.length}`;
+    act.title = all
+      ? `Deselect the chats in "${g.name}"`
+      : `Select all ${plural(g.ids.length, 'chat')} in "${g.name}"`;
+    act.onclick = (e) => {
+      e.stopPropagation(); // the heading toggles the folder; this button does not
+      onSelect();
+    };
+    el.append(act);
+  } else {
+    const hint = document.createElement('span');
+    hint.className = 'cc-grp-hint';
+    hint.textContent = 'Show';
+    el.append(hint);
+  }
   return el;
 }
 
