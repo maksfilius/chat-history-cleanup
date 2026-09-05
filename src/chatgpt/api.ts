@@ -114,6 +114,12 @@ interface ApiItem {
   gizmo_id?: string | null;
 }
 
+/**
+ * The pin fields are part of every listing item the API returns. Their presence — not their
+ * value — is what tells us the state is known.
+ */
+const pinKnown = (it: ApiItem): boolean => 'pinned_time' in it || 'is_starred' in it;
+
 const toMs = (s: unknown): number | undefined => {
   if (typeof s !== 'string' || !s) return undefined;
   const ms = Date.parse(/(?:Z|[+-]\d{2}:\d{2})$/.test(s) ? s : `${s}Z`);
@@ -130,15 +136,15 @@ export function mapApiItem(it: ApiItem): Conversation {
     createdAt: toMs(it.create_time),
     updatedAt: toMs(it.update_time),
     // Two independent pin signals, both set together on a pinned chat (VERIFIED 2026-09-03:
-    // pinned_time "2026-09-03T20:15:38Z" + is_starred true). Both are null on an unpinned chat
-    // AND on a chat whose pin state we cannot see, so absence proves nothing. Only an
-    // explicit false signal together with a null pin timestamp proves the negative here.
-    isPinned: it.pinned_time != null || it.is_starred === true
-      ? true : it.is_starred === false && it.pinned_time === null ? false : undefined,
-    // Project chats carry a "g-p-" gizmo. A plain "g-" gizmo is a custom GPT, not a project.
-    projectId: isProjectId(it.gizmo_id) ? it.gizmo_id
-      : it.gizmo_id === null || (typeof it.gizmo_id === 'string' && /^g-(?!p-)[A-Za-z0-9_-]+$/.test(it.gizmo_id))
-        ? null : undefined,
+    // pinned_time "2026-09-03T20:15:38Z" + is_starred true). On an unpinned chat the server
+    // sends both as **null** — not false — so a null value is an answer, while a MISSING field
+    // is the only real "we cannot tell". Reading null as unknown protects every ordinary
+    // conversation and stops the product doing anything at all.
+    isPinned: pinKnown(it) ? it.pinned_time != null || it.is_starred === true : undefined,
+    // Project chats carry a "g-p-" gizmo; a plain "g-" gizmo is a custom GPT, not a project.
+    // Same rule: a present-but-null gizmo means "not in a project"; an absent field means
+    // we were not told.
+    projectId: isProjectId(it.gizmo_id) ? it.gizmo_id : 'gizmo_id' in it ? null : undefined,
     isTemporary: it.is_temporary_chat,
     archived: it.is_archived,
     source: 'api',

@@ -277,3 +277,27 @@ test('concurrent protection toggles do not lose ids', async () => {
   assert.equal(overlapped, false, 'writes must be serialized, not interleaved');
   assert.deepEqual([...(await loadProtected())].sort(), [...ids].sort());
 });
+
+test('an ordinary account is not protected into uselessness', () => {
+  // Regression: treating a present-but-null pin field as "unknown" marked every ordinary
+  // conversation `metadata unavailable`, so Select all selected nothing and the product could
+  // not do its job. Fail-safe must distinguish "the server said null" from "the server did not say".
+  const items = [
+    { id: chatId(1), title: 'plain', create_time: null, update_time: null,
+      pinned_time: null, is_starred: null, gizmo_id: null },
+    { id: chatId(2), title: 'pinned', create_time: null, update_time: null,
+      pinned_time: '2026-01-01T00:00:00Z', is_starred: true, gizmo_id: null },
+    { id: chatId(3), title: 'in project', create_time: null, update_time: null,
+      pinned_time: null, is_starred: null, gizmo_id: 'g-p-abc123' },
+  ].map((i) => mapApiItem(i as never));
+
+  const prot = protectionMap(items, new Set());
+  assert.equal(prot.get(chatId(1)), undefined, 'an ordinary conversation is selectable');
+  assert.equal(prot.get(chatId(2)), 'pinned');
+  assert.equal(prot.get(chatId(3)), 'in a project');
+  assert.deepEqual(selectAll(items, prot).ids, [chatId(1)]);
+
+  // And a payload that genuinely omits the fields is still protected.
+  const silent = mapApiItem({ id: chatId(4), title: 'x', create_time: null, update_time: null } as never);
+  assert.equal(protectionMap([silent], new Set()).get(chatId(4)), 'metadata unavailable');
+});

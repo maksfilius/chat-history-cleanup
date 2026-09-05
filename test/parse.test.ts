@@ -51,13 +51,23 @@ test('project chats are distinguished from custom-GPT chats', () => {
   assert.equal(mapApiItem({ ...base, gizmo_id: null } as never).projectId, null);
 });
 
-test('pin detection needs an explicit false signal before treating a chat as unpinned', () => {
+test('a present pin field is an answer; only a missing one is unknown', () => {
   const base = { id: UUID, title: 't', create_time: null, update_time: null };
-  // Both signals null on an unpinned chat AND on a chat whose pin state we cannot see.
-  assert.equal(mapApiItem({ ...base, pinned_time: null, is_starred: null } as never).isPinned, undefined);
+  // VERIFIED against the live API: an unpinned conversation comes back with BOTH fields
+  // present and null. Reading null as "unknown" would protect every ordinary conversation
+  // and leave the product unable to select anything at all.
+  assert.equal(mapApiItem({ ...base, pinned_time: null, is_starred: null } as never).isPinned, false);
+  assert.equal(mapApiItem({ ...base, pinned_time: null, is_starred: false }).isPinned, false);
   assert.equal(mapApiItem({ ...base, pinned_time: '2026-01-01T00:00:00Z' } as never).isPinned, true);
   assert.equal(mapApiItem({ ...base, is_starred: true } as never).isPinned, true);
-  assert.equal(mapApiItem({ ...base, pinned_time: null, is_starred: false }).isPinned, false);
+  // The genuine unknown: the server did not send the fields at all.
+  assert.equal(mapApiItem({ ...base } as never).isPinned, undefined);
+});
+
+test('a present-but-null gizmo means "not in a project"; an absent one means unknown', () => {
+  const base = { id: UUID, title: 't', create_time: null, update_time: null };
+  assert.equal(mapApiItem({ ...base, gizmo_id: null } as never).projectId, null);
+  assert.equal(mapApiItem({ ...base } as never).projectId, undefined);
 });
 
 test('age formatting and unknown-age fail-safe', () => {
