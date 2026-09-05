@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { apiAdapter, endpoints, forgetToken, mapApiItem, verify, ApiError } from '../src/chatgpt/api.ts';
 import { parseConversationHref } from '../src/chatgpt/selectors.ts';
@@ -7,7 +6,7 @@ import { domAdapter } from '../src/chatgpt/dom.ts';
 import { protectionMap } from '../src/cleanup/protections.ts';
 import { projectGroups, selectAll } from '../src/cleanup/selection.ts';
 import { OperationQueue, type Operation } from '../src/queue/operationQueue.ts';
-import { loadBatch } from '../src/queue/persistence.ts';
+import { clearBatch, loadBatch, loadRestorePoint, saveBatch } from '../src/queue/persistence.ts';
 import type { ConversationAdapter } from '../src/types/conversation.ts';
 import { chatId } from './fixtures.ts';
 
@@ -181,22 +180,69 @@ test('unverified DOM mutations are disabled', async () => {
   await assert.rejects(domAdapter.archive(a), /target cannot be verified/);
 });
 
-test('an unverifiable saved batch does not brick the panel', async () => {
-  // The audit fix made loadBatch throw. If that rejection reaches the panel's Promise.all,
-  // `ready` never becomes true and the panel is unusable for good, because a user cannot
-  // reach chrome.storage to clear the record. The loader must isolate the failure.
-  const source = await readFile(new URL('../src/content/panel.ts', import.meta.url), 'utf8');
+/** chrome.storage.local stand-in holding whatever a previous version left behind. */
+function storageWith(record?: unknown) {
+  const mem: Record<string, unknown> = record === undefined ? {} : { activeBatch: record };
+  (globalThis as { chrome?: unknown }).chrome = {
+    runtime: { id: 'test-extension' },
+    storage: {
+      local: {
+        get: async (k: string) => (k in mem ? { [k]: mem[k] } : {}),
+        set: async (o: Record<string, unknown>) => void Object.assign(mem, o),
+        remove: async (k: string) => void delete mem[k],
+      },
+    },
+  };
+  return mem;
+}
 
-  assert.match(
-    source,
-    /loadBatch\(\)\.then\(/,
-    'loadBatch must be settled independently, not passed bare into Promise.all',
-  );
-  assert.match(source, /showRejectedBatch/, 'a rejected batch needs a visible, dismissible path');
-  // `ready` has to be set on the success path regardless of the batch outcome.
-  const loader = source.slice(source.indexOf('void Promise.all'));
-  assert.ok(
-    loader.indexOf('ready = true') < loader.indexOf('showRejectedBatch(restored.invalid)'),
-    'the panel becomes usable before the rejected-batch notice is shown',
-  );
+const liveOp = { id: chatId(1), title: 't', kind: 'remove', state: 'queued', attempts: 0 };
+
+test('a batch record from an older version is refused without blocking startup', async () => {
+  // The regression this guards: loadBatch throwing straight into the panel's Promise.all left
+  // the panel inert, blamed the session, and kept a record no user could reach or clear.
+  storageWith({ kind: 'remove', startedAt: Date.now(), ops: [liveOp] }); // no `version`
+  const r = await loadRestorePoint();
+  assert.equal(r.batch, null, 'an unversioned record is never resumed');
+  assert.match(r.invalid!, /Invalid or unsupported/, 'and the caller is told why');
+});
+
+test('a corrupt record is refused the same way, never salvaged', async () => {
+  storageWith({ version: 1, kind: 'archive', startedAt: Date.now(),
+    ops: [{ ...liveOp, kind: 'remove' }] }); // per-item kind disagrees with the batch
+  const r = await loadRestorePoint();
+  assert.equal(r.batch, null);
+  assert.ok(r.invalid);
+});
+
+test('a valid record still resumes, and an empty store is not an error', async () => {
+  const started = Date.now();
+  storageWith();
+  assert.deepEqual(await loadRestorePoint(), { batch: null, invalid: null });
+
+  await saveBatch({ kind: 'remove', startedAt: started, ops: [liveOp] as never });
+  const r = await loadRestorePoint();
+  assert.equal(r.invalid, null, 'a record we wrote ourselves must round-trip');
+  assert.equal(r.batch!.ops.length, 1);
+  assert.equal(r.batch!.kind, 'remove');
+});
+
+test('discarding a refused record actually removes it', async () => {
+  const mem = storageWith({ kind: 'remove', startedAt: Date.now(), ops: [liveOp] });
+  assert.ok((await loadRestorePoint()).invalid);
+  assert.equal(await clearBatch(), true, 'clearBatch reports whether the write landed');
+  assert.equal('activeBatch' in mem, false);
+  assert.deepEqual(await loadRestorePoint(), { batch: null, invalid: null });
+});
+
+test('discard reports failure when storage is gone, instead of claiming success', async () => {
+  // An extension update orphans the page; chrome.* throws synchronously. The UI must not say
+  // "discarded" while the record survives.
+  (globalThis as { chrome?: unknown }).chrome = {
+    runtime: {},
+    get storage(): never {
+      throw new Error('Extension context invalidated.');
+    },
+  };
+  assert.equal(await clearBatch(), false);
 });

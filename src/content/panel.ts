@@ -6,7 +6,7 @@ import { projectGroups, selectAll, selectRange } from '../cleanup/selection.ts';
 import { extensionAlive } from '../storage/local.ts';
 import { loadProtected, setProtected } from '../storage/protectedChats.ts';
 import { OperationQueue, type OpKind, type Operation } from '../queue/operationQueue.ts';
-import { clearBatch, loadBatch, saveBatch } from '../queue/persistence.ts';
+import { clearBatch, loadRestorePoint, saveBatch } from '../queue/persistence.ts';
 import type { Conversation } from '../types/conversation.ts';
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
@@ -296,9 +296,15 @@ export function createUi(): HTMLElement {
       discard.style.cssText =
         'background:none;border:none;color:#ffb782;text-decoration:underline;cursor:pointer;padding:0;font:inherit';
       discard.onclick = async () => {
-        await clearBatch();
-        warn.hidden = true;
-        warn.textContent = '';
+        if (await clearBatch()) {
+          warn.hidden = true;
+          warn.textContent = '';
+          return;
+        }
+        // Storage is gone (usually an extension update orphaned this page). Saying "discarded"
+        // when the record is still there would be a lie the user discovers on the next open.
+        discard.disabled = true;
+        discard.textContent = 'Could not discard — reload the page and try again';
       };
       warn.append(discard);
     }
@@ -434,14 +440,8 @@ export function createUi(): HTMLElement {
         total.textContent = `Loading ${loaded} conversations…`;
       }),
       loadProtected(),
-      // A saved batch that fails validation must not take the whole panel down with it: the
-      // record is unusable, but listing and cleaning still are. Recovering by hand is not an
-      // option for a user — chrome.storage is not reachable from the UI — so a rejected record
-      // has to be dismissible here, or the panel stays bricked for good.
-      loadBatch().then(
-        (b) => ({ batch: b, invalid: null as string | null }),
-        (err: unknown) => ({ batch: null, invalid: String((err as Error)?.message ?? err) }),
-      ),
+      // Settles either way: a record we refuse to trust must not brick the panel.
+      loadRestorePoint(),
     ])
       .then(([inv, saved, restored]) => {
         inventory = inv;

@@ -154,17 +154,28 @@ try {
     assert.equal(writes.length, 1);
     assert.ok(writes[0].url.endsWith('00000000-0000-4000-8000-000000000002'));
     assert.deepEqual(writes[0].body, { is_visible: false });
-    // Reopening must not make stale inventory actionable after saved-state validation fails.
+    // A saved record we refuse to trust must not be resumed — and must not disable the panel
+    // either. Refusing the record and refusing to work are different answers; a user cannot
+    // reach chrome.storage, so an unusable record has to be dismissible from here.
     await evaluate('mem.activeBatch = { version: 99 }');
     await click('.cc-x');
     await click('.cc-open');
+    assert.match(await evaluate(`testRoots.at(-1).querySelector('.cc-warn').textContent`), /could not be verified/);
+    assert.equal(await evaluate(`testRoots.at(-1).querySelector('.cc-warn').hidden`), false);
+    // No resume was offered for it.
+    assert.equal(await evaluate(`Boolean(testRoots.at(-1).querySelector('.cc-dlg'))`), false);
+    // Cleaning still works: selection and the destructive control stay available.
     await click('.cc-all');
-    assert.equal(await evaluate(`testRoots.at(-1).querySelector('.cc-ft button:last-child').disabled`), true);
-    assert.equal(await evaluate('globalThis.writes.length'), 1);
-    assert.match(await evaluate(`testRoots.at(-1).querySelector('.cc-warn').textContent`), /Invalid or unsupported/);
-    await evaluate('delete mem.activeBatch');
+    assert.equal(await evaluate(`testRoots.at(-1).querySelector('.cc-ft button:last-child').disabled`), false,
+      'a refused saved record must not brick the panel');
+    assert.equal(await evaluate('globalThis.writes.length'), 1, 'and it must not act on its own');
+    // Discard removes the record and only then hides the notice.
+    await click('.cc-warn button');
+    assert.equal(await evaluate(`'activeBatch' in mem`), false, 'discard must actually clear storage');
+    assert.equal(await evaluate(`testRoots.at(-1).querySelector('.cc-warn').hidden`), true);
+    await click('.cc-none');
     console.log('PASS: malicious title, isolated globals, synthetic selection/confirmation rejection, trusted selection, cancel, exact count and target');
-    console.log('PASS: invalid saved state cannot reactivate an old inventory');
+    console.log('PASS: a refused saved record is not resumed, does not disable the panel, and is dismissible');
     if (ownershipCheck) {
       // A release regression: closing/reopening must never create a second active owner.
       // Currently expected to FAIL (audit F06). All requests here remain synthetic.

@@ -47,3 +47,23 @@ export async function loadBatch(): Promise<PersistedBatch | null> {
   }
   return { kind: raw.kind as OpKind, startedAt: raw.startedAt as number, ops };
 }
+
+export interface RestorePoint {
+  /** A batch that validated and may be offered for resume. */
+  batch: PersistedBatch | null;
+  /** Why a stored record was refused, when one was. */
+  invalid: string | null;
+}
+
+/**
+ * Never rejects. A stored batch we refuse to trust must not take down the caller's whole
+ * startup: the record is unusable, but listing and cleaning are not, and a user cannot reach
+ * chrome.storage to clear it. Refusing the record and refusing to work are different answers.
+ */
+export async function loadRestorePoint(): Promise<RestorePoint> {
+  try {
+    return { batch: await loadBatch(), invalid: null };
+  } catch (err) {
+    return { batch: null, invalid: String((err as Error)?.message ?? err) };
+  }
+}
