@@ -10,6 +10,8 @@ const chat = (id: string, over: Partial<Conversation> = {}): Conversation => ({
   title: `title ${id}`,
   updatedAt: NOW - 400 * 86_400_000, // old enough that every age rule matches
   source: 'api',
+  isPinned: false,
+  projectId: null,
   ...over,
 });
 const none = new Set<string>();

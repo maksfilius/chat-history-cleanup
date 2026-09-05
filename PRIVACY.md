@@ -1,10 +1,12 @@
 # Privacy Policy — Chat Cleanup
 
-Last updated: 2026-09-03
+Last updated: 2026-09-05
 
 ## The short version
 
-Chat Cleanup has no servers. It cannot collect your data, because there is nowhere to send it.
+Chat Cleanup has no developer-operated backend, analytics, or third-party reporting service.
+It handles your ChatGPT data locally and sends authenticated requests to ChatGPT. This
+pre-release build is not approved for production use; see `PRE_RELEASE_AUDIT.md`.
 
 ## What the extension does
 
@@ -12,10 +14,12 @@ Chat Cleanup runs entirely inside your browser, on `chatgpt.com` only. It lists 
 conversations, lets you choose some, and asks ChatGPT to archive or delete them — the same
 actions you can already perform by hand, one at a time, in ChatGPT's own interface.
 
-## What we collect
+## How we handle data
 
-Nothing. There is no backend, no account, no analytics, no telemetry, no error reporting, and
-no third-party service of any kind.
+The extension accesses conversation metadata and your ChatGPT session token to provide its
+cleanup workflow. Verification also downloads full conversation detail, including messages.
+There is no separate extension account, analytics, telemetry, or remote error reporting.
+No data is sent to the extension developer or a separate third-party service.
 
 ## What leaves your browser
 
@@ -25,23 +29,35 @@ Only requests to `chatgpt.com`, made from your own logged-in session, to:
 - archive or delete the conversations you selected;
 - read back a conversation to confirm an action actually took effect.
 
-No request is made to any other domain. Your conversation content is never uploaded anywhere.
+These requests transmit conversation/project IDs, action flags, session cookies and a bearer
+token to `https://chatgpt.com`. Request redirects are rejected and the extension suppresses the
+page referrer. Conversation titles and message bodies are not included in outgoing request bodies.
 
 ## What the extension reads
 
-Conversation **metadata** only: id, title, creation and update time, archived flag, pinned
-flag, and project membership. This is what the age filters and protection rules need.
+Conversation metadata: ID, title, creation and update time, archived flag, pinned flag, and
+project membership. Project discovery also reads project names and IDs.
 
-The extension does not read, index, or transmit the messages inside your conversations.
+To check the result of an action, the extension downloads and parses ChatGPT's conversation
+detail response. That response can contain the full messages, even though the extension only
+uses its identity and archive status. It does not index, analyze, persist or upload those
+message bodies. The session response can also contain account information; only its token is
+retained in memory. A metadata-only verification mechanism or explicit informed opt-in is a
+release blocker, as documented in the audit.
 
 ## What the extension stores
 
 In `chrome.storage.local`, on your machine only:
 
 - the ids of conversations you manually marked as protected;
-- the state of an unfinished batch, so it can be resumed after a reload.
+- batch action type, start time, schema version, and each conversation's ID, **title**, action,
+  state, attempt count and optional error, for progress and attempted recovery.
 
-Both stay on your computer. Neither is ever transmitted. Removing the extension removes them.
+The storage records stay in this browser profile and do not use Chrome sync. Conversation IDs
+from a resumed batch are sent to ChatGPT when executing that batch. Pending records have no
+automatic expiry; the UI can discard them. Settled batches are cleared, subject to the known
+storage/recovery defects in the audit. Manual protection IDs remain until removed or the
+extension is uninstalled. Removing the extension removes its local storage.
 
 ## Session credentials
 

@@ -14,6 +14,9 @@ ChatGPT lets users delete or archive conversations individually, but managing hu
 
 Pre-MVP / validation stage.
 
+**Release blocked:** the pre-release audit found unresolved queue recovery, concurrency,
+confirmation and privacy issues. See [PRE_RELEASE_AUDIT.md](PRE_RELEASE_AUDIT.md).
+
 The first version should remain intentionally small and local-only.
 
 ## Product boundary
@@ -39,7 +42,8 @@ There are no artificial Free limits — no cap on how many conversations you may
   included by hand.
 - Manual protection you set yourself, stored locally.
 - Sequential queue with progress, retry/backoff and rate-limit handling.
-- An interrupted batch survives a reload and can be resumed without repeating anything.
+- An interrupted batch is stored locally and offered for recovery. The current recovery path
+  can repeat interrupted writes and is not ready for production use.
 
 ## Not in Free v1
 

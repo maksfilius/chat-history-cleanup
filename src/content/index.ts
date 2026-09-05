@@ -1,5 +1,3 @@
-import { apiAdapter, listAll, listPage, verify } from '../chatgpt/api.ts';
-import { domAdapter, listDomConversations, probeLoadMore } from '../chatgpt/dom.ts';
 import { createUi } from './panel.ts';
 
 const MOUNT_ID = 'chat-cleanup-root';
@@ -18,8 +16,3 @@ function mount() {
 
 mount();
 new MutationObserver(() => mount()).observe(document.body, { childList: true });
-
-// Milestone 0 probes, kept reachable from devtools instead of as extra UI.
-(window as unknown as Record<string, unknown>).__chatCleanup = {
-  domAdapter, apiAdapter, listAll, listPage, verify, listDomConversations, probeLoadMore,
-};

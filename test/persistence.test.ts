@@ -6,6 +6,7 @@ import { clearBatch, loadBatch, saveBatch } from '../src/queue/persistence.ts';
 import { extensionAlive } from '../src/storage/local.ts';
 import { loadProtected, setProtected } from '../src/storage/protectedChats.ts';
 import type { ConversationAdapter } from '../src/types/conversation.ts';
+import { chatId } from './fixtures.ts';
 
 /** Minimal chrome.storage.local stand-in for a live extension context. */
 function stubStorage(initial: Record<string, unknown> = {}) {
@@ -14,8 +15,8 @@ function stubStorage(initial: Record<string, unknown> = {}) {
     runtime: { id: 'test-extension' },
     storage: {
       local: {
-        get: async (k: string) => (k in mem ? { [k]: mem[k] } : {}),
-        set: async (o: Record<string, unknown>) => void Object.assign(mem, o),
+        get: async (k: string) => structuredClone(k in mem ? { [k]: mem[k] } : {}),
+        set: async (o: Record<string, unknown>) => void Object.assign(mem, structuredClone(o)),
         remove: async (k: string) => void delete mem[k],
       },
     },
@@ -38,7 +39,7 @@ function stubInvalidatedContext() {
 }
 
 const op = (id: string, state: Operation['state'], attempts = 1): Operation => ({
-  id,
+  id: chatId(id),
   title: id,
   kind: 'remove',
   state,
@@ -46,7 +47,7 @@ const op = (id: string, state: Operation['state'], attempts = 1): Operation => (
 });
 
 test('an interrupted operation comes back queued, with its retries reset', async () => {
-  // We cannot know whether the in-flight write landed, so it must be re-issued.
+  // Documents the current unsafe recovery behavior (audit F04), not an exactly-once guarantee.
   stubStorage();
   await saveBatch({
     kind: 'remove',
@@ -57,10 +58,10 @@ test('an interrupted operation comes back queued, with its retries reset', async
   assert.deepEqual(
     b!.ops.map((o) => [o.id, o.state, o.attempts]),
     [
-      ['a', 'done', 1],
-      ['b', 'queued', 0],
-      ['c', 'queued', 0],
-      ['d', 'queued', 0],
+      [chatId('a'), 'done', 1],
+      [chatId('b'), 'queued', 0],
+      [chatId('c'), 'queued', 0],
+      [chatId('d'), 'queued', 0],
     ],
   );
 });
@@ -71,13 +72,13 @@ test('a failed operation stays failed and is not retried by the resume', async (
   assert.equal((await loadBatch())!.ops[0].state, 'failed');
 });
 
-test('malformed or empty stored batches are ignored', async () => {
+test('malformed saved batches stop loading; absent storage is empty', async () => {
   stubStorage({ activeBatch: { kind: 'nonsense', ops: [op('a', 'queued')] } });
-  assert.equal(await loadBatch(), null);
+  await assert.rejects(loadBatch(), /Invalid or unsupported/);
   stubStorage({ activeBatch: { kind: 'remove', ops: 'not-an-array' } });
-  assert.equal(await loadBatch(), null);
+  await assert.rejects(loadBatch(), /Invalid or unsupported/);
   stubStorage({ activeBatch: { kind: 'remove', ops: [{ junk: true }] } });
-  assert.equal(await loadBatch(), null);
+  await assert.rejects(loadBatch(), /Invalid or unsupported/);
   stubStorage();
   assert.equal(await loadBatch(), null);
 });
@@ -90,7 +91,7 @@ test('clearBatch removes the record', async () => {
   assert.equal(await loadBatch(), null);
 });
 
-test('a resumed batch never repeats a completed destructive action', async () => {
+test('resume skips durably recorded done states; ambiguous running work still replays (F04)', async () => {
   stubStorage();
   const calls: string[] = [];
   const adapter: ConversationAdapter = {
@@ -113,11 +114,11 @@ test('a resumed batch never repeats a completed destructive action', async () =>
   });
   await q.run();
 
-  assert.deepEqual(calls, ['c', 'd'], 'a and b must not be deleted a second time');
+  assert.deepEqual(calls, ['c', 'd'].map(chatId), 'a and b must not be deleted a second time');
   assert.equal(q.done, 4);
 });
 
-test('a conversation that vanished mid-batch settles as done, not as a failure', async () => {
+test('already deleted satisfies delete, but must never be reported as archived', async () => {
   // Deleting an already-deleted chat, and archiving one that someone deleted elsewhere.
   for (const kind of ['remove', 'archive'] as const) {
     const adapter: ConversationAdapter = {
@@ -130,14 +131,14 @@ test('a conversation that vanished mid-batch settles as done, not as a failure',
         throw new ApiError(404, 'conversation_deleted');
       },
     };
-    const q = new OperationQueue([{ id: 'gone', title: 'gone' }], kind, {
+    const q = new OperationQueue([{ id: chatId('gone'), title: 'gone' }], kind, {
       adapter,
       verify: async () => ({ state: 'deleted' }),
       sleep: async () => {},
     });
     await q.run();
-    assert.equal(q.done, 1, `${kind}: a vanished conversation is not an error`);
-    assert.equal(q.failed.length, 0);
+    assert.equal(q.done, kind === 'remove' ? 1 : 0);
+    assert.equal(q.failed.length, kind === 'archive' ? 1 : 0);
   }
 });
 

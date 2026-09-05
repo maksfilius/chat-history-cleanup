@@ -1,5 +1,7 @@
 # Chrome Web Store listing
 
+**Draft — do not submit.** `PRE_RELEASE_AUDIT.md` records unresolved release blockers.
+
 ## Name
 
 Chat Cleanup
@@ -26,9 +28,10 @@ one of your Projects in a single click. The Project itself is never touched — 
 conversations.
 
 **What matters is protected**
-Conversations in Projects and pinned conversations are skipped by every bulk gesture, and the
-panel tells you how many it skipped. You can still include one by ticking it yourself, and the
-confirmation will say plainly that you are doing it. You can lock any other conversation too.
+Select All and shift ranges skip conversations known to be protected or with unverified metadata.
+You can include a protected chat by ticking it yourself. Selecting a named Project is an explicit
+override for that Project's chats; the current chip also includes pinned/manually protected chats
+inside it. Protection synchronization and freshness still need the fixes listed in the audit.
 
 **Review before anything happens**
 You see the exact list before you act. Deletion asks for explicit confirmation and states the
@@ -41,13 +44,14 @@ limits and hiccups are retried with backoff. If ChatGPT throttles your account, 
 cleanly instead of failing everything.
 
 **Close the tab, keep your progress**
-An interrupted batch is saved. Reopen the panel and it offers to resume, telling you how many
-already finished. Completed deletions are never repeated.
+The extension saves batch progress and offers recovery when reopened. The current implementation
+can repeat a write whose result was not durably recorded. This must be fixed before release.
 
 **Private by construction**
-No account, no servers, no analytics. Chat Cleanup has no backend, so there is nowhere for your
-data to go. It reads conversation titles and dates — never the messages inside — and everything
-it remembers stays in your browser.
+No separate extension account, developer backend or analytics. Requests go to ChatGPT using your
+existing session. The extension reads titles/dates/project metadata and downloads full conversation
+detail to verify actions; message bodies are not indexed, persisted or uploaded. Batch titles and
+IDs are stored locally. See PRIVACY.md; metadata-only verification or informed opt-in is unresolved.
 
 ## Permission justification
 
@@ -63,7 +67,10 @@ ChatGPT conversations.
 
 ## Data usage disclosures
 
-- Does the extension collect user data? **No.**
+- Does the extension handle user data? **Yes:** website content, conversation/project metadata,
+  session authentication information, and full detail responses for verification. Processing and
+  batch storage are local; authenticated cleanup requests go to ChatGPT. Complete the current
+  store dashboard disclosures accordingly before submission.
 - Is data sold to third parties? **No.**
 - Is data used for purposes unrelated to the single purpose? **No.**
 - Is data used to determine creditworthiness or for lending? **No.**

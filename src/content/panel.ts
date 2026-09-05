@@ -75,7 +75,17 @@ const CSS = `
 
 export function createUi(): HTMLElement {
   const host = document.createElement('div');
-  const root = host.attachShadow({ mode: 'open' });
+  const root = host.attachShadow({ mode: 'closed' });
+  // Content scripts share the DOM with page scripts. Programmatic clicks/change events must
+  // never select conversations or authorize an action, even if a control reference leaks.
+  for (const type of ['click', 'change', 'input', 'keydown', 'keyup']) {
+    root.addEventListener(type, (event) => {
+      if (!event.isTrusted) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    }, { capture: true });
+  }
   root.innerHTML = `<style>${CSS}</style><button class="cc-open">Clean up</button>`;
 
   const selected = new Set<string>();
@@ -117,6 +127,9 @@ export function createUi(): HTMLElement {
 
     let protectedBy = new Map<string, string>();
     let manual = new Set<string>();
+    // A previous opening's inventory must not enable actions before this opening's storage
+    // and protection reads succeed, especially when a persisted batch fails validation.
+    let ready = false;
     /** Row index of the last checkbox the user clicked, for shift-range selection. */
     let anchor: number | null = null;
 
@@ -169,6 +182,7 @@ export function createUi(): HTMLElement {
      * look like a bug; saying so turns it into a safety feature the user can see.
      */
     const applyBulk = (r: { ids: string[]; skipped: number }, what: string) => {
+      if (!ready) return;
       for (const id of r.ids) selected.add(id);
       setNote(
         `${plural(r.ids.length, 'chat')} selected${what}` +
@@ -210,7 +224,7 @@ export function createUi(): HTMLElement {
     };
 
     const render = () => {
-      if (!inventory) return;
+      if (!inventory || !ready) return;
       paintSummary();
       if (reportOpen) return; // the report is on screen; do not rebuild the list under it
       // An incomplete inventory must never drive a bulk action: acting on a partial list is
@@ -264,6 +278,30 @@ export function createUi(): HTMLElement {
       setNote('');
       render();
     };
+
+    /**
+     * A saved batch we refuse to trust. Never resumed, never silently deleted: the user is
+     * told what happened and discards it deliberately.
+     */
+    function showRejectedBatch(reason: string) {
+      warn.hidden = false;
+      warn.replaceChildren(
+        document.createTextNode(
+          `A saved cleanup batch could not be verified and will not be resumed (${reason}) ` +
+            'Nothing was changed. Cleanup still works; discard the record to hide this. ',
+        ),
+      );
+      const discard = document.createElement('button');
+      discard.textContent = 'Discard saved batch';
+      discard.style.cssText =
+        'background:none;border:none;color:#ffb782;text-decoration:underline;cursor:pointer;padding:0;font:inherit';
+      discard.onclick = async () => {
+        await clearBatch();
+        warn.hidden = true;
+        warn.textContent = '';
+      };
+      warn.append(discard);
+    }
 
     /**
      * An interrupted batch is never resumed on its own — the user decides. Discarding only
@@ -396,12 +434,21 @@ export function createUi(): HTMLElement {
         total.textContent = `Loading ${loaded} conversations…`;
       }),
       loadProtected(),
-      loadBatch(),
+      // A saved batch that fails validation must not take the whole panel down with it: the
+      // record is unusable, but listing and cleaning still are. Recovering by hand is not an
+      // option for a user — chrome.storage is not reachable from the UI — so a rejected record
+      // has to be dismissible here, or the panel stays bricked for good.
+      loadBatch().then(
+        (b) => ({ batch: b, invalid: null as string | null }),
+        (err: unknown) => ({ batch: null, invalid: String((err as Error)?.message ?? err) }),
+      ),
     ])
-      .then(([inv, saved, unfinished]) => {
+      .then(([inv, saved, restored]) => {
         inventory = inv;
         manual = saved;
-        if (unfinished) void offerResume(unfinished);
+        ready = true;
+        if (restored.invalid) showRejectedBatch(restored.invalid);
+        else if (restored.batch) void offerResume(restored.batch);
         if (!extensionAlive()) warnStorageLost();
         if (!inv.complete) {
           warn.hidden = false;

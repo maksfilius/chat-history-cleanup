@@ -1,5 +1,37 @@
 # ChatGPT Integration Notes
 
+## 2026-09-05 audit correction — current build is release-blocked
+
+The historical observations below are not current contract guarantees. The actual panel uses
+the API exclusively. There is no automatic DOM fallback; DOM archive/delete are now disabled
+because menu ownership and confirmation cannot be verified. Release developer globals were removed.
+
+The audit reproduced unsafe replay after interrupted writes, unawaited persistence, multiple
+controllers sharing a queue key, malformed restored operation kinds, unknown pin metadata being
+selected, and page-generated UI authorization. See `PRE_RELEASE_AUDIT.md` for evidence and status.
+Documentation saying an idempotent server operation means a request is never repeated is incorrect.
+
+Bounded guards now require canonical conversation UUIDs, project-shaped IDs and encoded cursors;
+requests use the fixed HTTPS ChatGPT origin, no redirects, no cache and no page referrer. PATCH must
+return `success: true`. A detail response is accepted only if its `conversation_id` equals the
+requested UUID and `is_archived` is boolean. **This exact detail identity field must be verified
+on a disposable live account before release.** If absent or changed, the guard returns a permanent
+verification error and the queue must not retry that write. No fallback to an unnamed response is
+permitted. These are conservative validation requirements, not new live endpoint observations.
+
+Null pin signals remain unknown. Only explicit `is_starred: false` together with `pinned_time: null`
+is treated as unpinned. If current ChatGPT returns null for all ordinary chats, broad selection
+will skip them: there is no reliable negative pin signal yet. Individual selection stays possible.
+Missing/unrecognized project membership also remains unknown and protected.
+
+`verify()` downloads and parses **full conversation detail, including message content**. It does
+not persist or analyze the messages, but this violates a literal metadata-only access claim and
+needs a researched alternative or informed opt-in before release. The cached token is kept in
+memory and transmitted back to ChatGPT; account/workspace binding remains unresolved. No live
+account was accessed as part of this audit.
+
+The reproduction instructions at the end describe the old spike UI, not the current build.
+
 Status: **Milestone 0 complete. Findings below were VERIFIED live on 2026-09-03** against a
 logged-in Plus account (8 conversations, 5 archived, 1 project chat, German UI) by executing
 the spike's probes in the page context of `https://chatgpt.com`.

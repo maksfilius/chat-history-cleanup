@@ -3,12 +3,15 @@ import test from 'node:test';
 import { ApiError } from '../src/chatgpt/api.ts';
 import { MAX_ATTEMPTS, OperationQueue, backoffMs, settledOk } from '../src/queue/operationQueue.ts';
 import type { ConversationAdapter } from '../src/types/conversation.ts';
+import { chatId } from './fixtures.ts';
+import { isConversationId } from '../src/types/identifiers.ts';
 
-const items = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `c${i}`, title: `t${i}` }));
+const items = (n: number) => Array.from({ length: n }, (_, i) => ({ id: chatId(`c${i}`), title: `t${i}` }));
 const noSleep = async () => {};
 
 /** Adapter whose behavior per id is scripted by the test. */
 function fakeAdapter(script: Record<string, () => Promise<void>> = {}): ConversationAdapter & { calls: string[] } {
+  script = Object.fromEntries(Object.entries(script).map(([id, fn]) => [isConversationId(id) ? id : chatId(id), fn]));
   const calls: string[] = [];
   const act = async (id: string) => {
     calls.push(id);
@@ -27,7 +30,7 @@ test('happy path: every op runs once and is confirmed', async () => {
   await q.run();
   assert.equal(q.done, 3);
   assert.equal(q.failed.length, 0);
-  assert.deepEqual(adapter.calls, ['c0', 'c1', 'c2']); // sequential, concurrency 1
+  assert.deepEqual(adapter.calls, ['c0', 'c1', 'c2'].map(chatId)); // sequential, concurrency 1
 });
 
 test('a 2xx write that the detail endpoint does not confirm is NOT counted as success', async () => {
@@ -88,7 +91,7 @@ test('deleting an already-deleted conversation counts as done, never as a retry'
   assert.equal(q.done, 1);
   assert.equal(q.failed.length, 0);
   assert.equal(adapter.calls.length, 1);
-  assert.deepEqual(settled, ['c0']);
+  assert.deepEqual(settled, ['c0'].map(chatId));
 });
 
 test('stop() halts the batch and leaves the rest untouched', async () => {
@@ -119,7 +122,7 @@ test('re-running a stopped queue resumes without repeating completed work', asyn
   q.resume();
   await q.run();
   assert.equal(q.done, 4);
-  assert.deepEqual(adapter.calls, ['c0', 'c1', 'c2', 'c3'], 'c0/c1 must not be deleted twice');
+  assert.deepEqual(adapter.calls, ['c0', 'c1', 'c2', 'c3'].map(chatId), 'c0/c1 must not be deleted twice');
 });
 
 test('settledOk demands proof, not a 2xx', () => {

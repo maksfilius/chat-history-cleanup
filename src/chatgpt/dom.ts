@@ -35,33 +35,12 @@ export async function probeLoadMore(waitMs = 1500): Promise<{ before: number; af
   return { before, after: listDomConversations().length };
 }
 
-function rowFor(id: string): HTMLElement | null {
-  const a = q<HTMLAnchorElement>(`a[href^="/c/${id}"]`);
-  return (a?.closest('li') as HTMLElement) ?? a?.parentElement ?? null;
-}
-
-/** Clicks the row menu and the item whose text matches `label`. User-equivalent route. */
-async function menuAction(id: string, label: RegExp): Promise<void> {
-  const row = rowFor(id);
-  if (!row) throw new Error(`row not found: ${id}`);
-  row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-  const trigger = q<HTMLElement>(selectors.rowMenuButton, row);
-  if (!trigger) throw new Error('row menu button not found');
-  trigger.click();
-  await new Promise((r) => setTimeout(r, 300));
-  const item = [...document.querySelectorAll<HTMLElement>(selectors.menuItem)].find((el) =>
-    label.test(el.textContent ?? ''),
-  );
-  if (!item) throw new Error(`menu item ${label} not found`);
-  item.click();
-}
-
-/** DOM route. Kept as the fallback adapter; delete additionally needs a confirm dialog click. */
+/** Discovery only. DOM mutation cannot currently verify menu ownership and is disabled. */
 export const domAdapter: ConversationAdapter = {
   name: 'dom',
   listVisibleConversations: async () => listDomConversations(),
-  archive: (id) => menuAction(id, /archive/i),
-  remove: (id) => menuAction(id, /delete/i),
+  archive: async () => { throw new Error('DOM archive is unavailable: target cannot be verified'); },
+  remove: async () => { throw new Error('DOM delete is unavailable: target cannot be verified'); },
 };
 
 /**
@@ -69,6 +48,9 @@ export const domAdapter: ConversationAdapter = {
  * a deleted conversation's row stays in the DOM until reload (verified 2026-09-03).
  */
 export function removeRow(id: string): void {
-  const a = q<HTMLAnchorElement>(`a[href^="/c/${id}"]`);
-  (a?.closest('li') ?? a)?.remove();
+  for (const a of document.querySelectorAll<HTMLAnchorElement>(selectors.conversationLink)) {
+    if (!a.closest('#history, nav') || parseConversationHref(a.getAttribute('href'))?.id !== id) continue;
+    // Remove only this verified link, never an ancestor that might own other conversations.
+    a.remove();
+  }
 }

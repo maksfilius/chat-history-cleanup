@@ -12,9 +12,8 @@ export function protectionFor(c: Conversation, manual: ReadonlySet<string>): str
   // cannot prove it is safe. Fail safe rather than assume.
   if (c.source !== 'api') return 'metadata unavailable';
   if (c.projectId) return 'in a project';
-  // isPinned is true or undefined, never false: a pinned chat always carries pinned_time and
-  // is_starred (verified 2026-09-03), so undefined here means "not pinned", not "unknown".
   if (c.isPinned) return 'pinned';
+  if (c.isPinned !== false || c.projectId === undefined) return 'metadata unavailable';
   return null;
 }
 

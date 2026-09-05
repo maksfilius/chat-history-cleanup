@@ -7,7 +7,8 @@
     "build": "node build.mjs",
     "typecheck": "tsc --noEmit",
     "test": "node --test test/*.test.ts",
-    "package": "npm run build && cd dist && zip -qr ../chat-cleanup.zip . && cd .. && echo \"chat-cleanup.zip ready\""
+    "package": "npm run build && cd dist && zip -qr ../chat-cleanup.zip . && cd .. && echo \"chat-cleanup.zip ready\"",
+    "test:browser": "node test/browser-safety.mjs"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.278",

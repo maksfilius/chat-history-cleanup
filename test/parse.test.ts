@@ -3,6 +3,7 @@ import test from 'node:test';
 import { parseConversationHref } from '../src/chatgpt/selectors.ts';
 import { listAll, mapApiItem } from '../src/chatgpt/api.ts';
 import { daysSince, formatAge } from '../src/cleanup/age.ts';
+import { chatId } from './fixtures.ts';
 
 const UUID = '0f9a1b2c-3d4e-5f60-7182-93a4b5c6d7e8';
 
@@ -50,12 +51,13 @@ test('project chats are distinguished from custom-GPT chats', () => {
   assert.equal(mapApiItem({ ...base, gizmo_id: null } as never).projectId, null);
 });
 
-test('pin detection never reports a proven-false', () => {
+test('pin detection needs an explicit false signal before treating a chat as unpinned', () => {
   const base = { id: UUID, title: 't', create_time: null, update_time: null };
   // Both signals null on an unpinned chat AND on a chat whose pin state we cannot see.
   assert.equal(mapApiItem({ ...base, pinned_time: null, is_starred: null } as never).isPinned, undefined);
   assert.equal(mapApiItem({ ...base, pinned_time: '2026-01-01T00:00:00Z' } as never).isPinned, true);
   assert.equal(mapApiItem({ ...base, is_starred: true } as never).isPinned, true);
+  assert.equal(mapApiItem({ ...base, pinned_time: null, is_starred: false }).isPinned, false);
 });
 
 test('age formatting and unknown-age fail-safe', () => {
@@ -72,7 +74,7 @@ test('age formatting and unknown-age fail-safe', () => {
 test('listAll pages, dedupes, and reports an incomplete inventory', async () => {
   const items = (from: number, n: number) =>
     Array.from({ length: n }, (_, i) => ({
-      id: `id-${from + i}`, title: 't', create_time: null, update_time: null,
+      id: chatId(from + i), title: 't', create_time: null, update_time: null,
     }));
   const pages: Record<number, unknown[]> = { 0: items(0, 28), 28: items(28, 28), 56: items(50, 6) };
   globalThis.fetch = (async (url: string) => {
@@ -100,22 +102,22 @@ test('listAll includes project conversations the flat listing omits', async () =
     if (u.includes('/gizmos/g-p-1/conversations')) {
       return json({
         items: [
-          { id: 'p1', title: 'a', create_time: null, update_time: null, gizmo_id: 'g-p-1' },
-          { id: 'p2', title: 'b', create_time: null, update_time: null, gizmo_id: 'g-p-1' },
+          { id: chatId('p1'), title: 'a', create_time: null, update_time: null, gizmo_id: 'g-p-1' },
+          { id: chatId('p2'), title: 'b', create_time: null, update_time: null, gizmo_id: 'g-p-1' },
         ],
         cursor: null,
       });
     }
     const offset = Number(new URL(u, 'https://chatgpt.com').searchParams.get('offset'));
-    return json({ items: offset === 0 ? [{ id: 'flat', title: 'f', create_time: null, update_time: null }] : [], total: 1 });
+    return json({ items: offset === 0 ? [{ id: chatId('flat'), title: 'f', create_time: null, update_time: null }] : [], total: 1 });
   }) as never;
 
   const inv = await listAll();
-  assert.deepEqual(inv.conversations.map((c) => c.id).sort(), ['flat', 'p1', 'p2']);
+  assert.deepEqual(inv.conversations.map((c) => c.id).sort(), ['flat', 'p1', 'p2'].map(chatId).sort());
   assert.equal(inv.total, 3);
   assert.equal(inv.complete, true);
   // Project conversations carry their project id, which makes them protected downstream.
-  assert.equal(inv.conversations.find((c) => c.id === 'p1')!.projectId, 'g-p-1');
+  assert.equal(inv.conversations.find((c) => c.id === chatId('p1'))!.projectId, 'g-p-1');
 });
 
 test('a project that cannot be read makes the inventory incomplete and is named', async () => {
@@ -128,7 +130,7 @@ test('a project that cannot be read makes the inventory incomplete and is named'
     }
     if (u.includes('/gizmos/g-p-1/conversations')) return new Response('nope', { status: 500 });
     const offset = Number(new URL(u, 'https://chatgpt.com').searchParams.get('offset'));
-    return json({ items: offset === 0 ? [{ id: 'flat', title: 'f', create_time: null, update_time: null }] : [], total: 1 });
+    return json({ items: offset === 0 ? [{ id: chatId('flat'), title: 'f', create_time: null, update_time: null }] : [], total: 1 });
   }) as never;
 
   const inv = await listAll();

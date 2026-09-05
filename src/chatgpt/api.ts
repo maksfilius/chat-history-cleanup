@@ -1,9 +1,10 @@
 import type { Conversation, ConversationAdapter } from '../types/conversation.ts';
+import { isProjectId, requireConversationId } from '../types/identifiers.ts';
 
 /**
  * Internal-endpoint route, observed from what the ChatGPT web app itself calls.
- * Same-origin fetch from the content script; the session token is read per call and
- * never stored, logged or sent anywhere. Endpoints are undocumented -> keep them here only.
+ * ChatGPT-only fetch from the content script. The token is cached in memory and sent back
+ * to ChatGPT for authentication, never persisted or logged. Endpoints are undocumented.
  *
  * VERIFIED 2026-09-03. Two traps confirmed live:
  *  - The list endpoint answers 200 to a cookie-only request but returns a SILENTLY PARTIAL
@@ -14,7 +15,7 @@ export const endpoints = {
   session: '/api/auth/session',
   list: (offset: number, limit: number) =>
     `/backend-api/conversations?offset=${offset}&limit=${limit}&order=updated`,
-  conversation: (id: string) => `/backend-api/conversation/${id}`,
+  conversation: (id: string) => `/backend-api/conversation/${requireConversationId(id)}`,
   /**
    * Conversations inside a project are NOT returned by the flat list above — they live behind
    * their own cursor-paginated endpoint. Observed by watching what the project page itself
@@ -24,8 +25,10 @@ export const endpoints = {
     // conversations_per_gizmo must be >= 1: the server answers 422 to 0. We ignore the
     // conversations it inlines and page them properly via projectConversations instead.
     `/backend-api/gizmos/snorlax/sidebar?owned_only=true&conversations_per_gizmo=1&limit=${limit}`,
-  projectConversations: (gizmoId: string, cursor: string | number, limit: number) =>
-    `/backend-api/gizmos/${gizmoId}/conversations?cursor=${cursor}&limit=${limit}`,
+  projectConversations: (gizmoId: string, cursor: string | number, limit: number) => {
+    if (!isProjectId(gizmoId)) throw new Error('Invalid project identifier');
+    return `/backend-api/gizmos/${gizmoId}/conversations?cursor=${encodeURIComponent(cursor)}&limit=${limit}`;
+  },
 } as const;
 
 /**
@@ -38,10 +41,12 @@ let cachedToken: string | null = null;
 
 async function accessToken(): Promise<string> {
   if (cachedToken) return cachedToken;
-  const res = await fetch(endpoints.session, { credentials: 'include' });
+  const res = await fetch(`https://chatgpt.com${endpoints.session}`, {
+    credentials: 'include', redirect: 'error', cache: 'no-store', referrerPolicy: 'no-referrer',
+  });
   if (!res.ok) throw new ApiError(res.status);
   const token = (await res.json())?.accessToken;
-  if (!token) throw new ApiError(401, 'no_session');
+  if (typeof token !== 'string' || !token.trim()) throw new ApiError(401, 'no_session');
   cachedToken = token;
   return token;
 }
@@ -67,9 +72,13 @@ export class ApiError extends Error {
 }
 
 async function call(path: string, init: RequestInit = {}, retried = false): Promise<Response> {
-  const res = await fetch(path, {
+  if (!path.startsWith('/backend-api/')) throw new Error('Unexpected ChatGPT endpoint');
+  const res = await fetch(`https://chatgpt.com${path}`, {
     ...init,
     credentials: 'include',
+    redirect: 'error',
+    cache: 'no-store',
+    referrerPolicy: 'no-referrer',
     headers: {
       Authorization: `Bearer ${await accessToken()}`,
       'Content-Type': 'application/json',
@@ -105,9 +114,15 @@ interface ApiItem {
   gizmo_id?: string | null;
 }
 
-const toMs = (s: string | null) => (s ? Date.parse(s.endsWith('Z') ? s : `${s}Z`) : undefined);
+const toMs = (s: unknown): number | undefined => {
+  if (typeof s !== 'string' || !s) return undefined;
+  const ms = Date.parse(/(?:Z|[+-]\d{2}:\d{2})$/.test(s) ? s : `${s}Z`);
+  return Number.isFinite(ms) ? ms : undefined;
+};
 
 export function mapApiItem(it: ApiItem): Conversation {
+  requireConversationId(it?.id);
+  if (it.title !== null && typeof it.title !== 'string') throw new Error('Invalid conversation title');
   return {
     id: it.id,
     title: (it.title ?? '').trim(),
@@ -116,10 +131,14 @@ export function mapApiItem(it: ApiItem): Conversation {
     updatedAt: toMs(it.update_time),
     // Two independent pin signals, both set together on a pinned chat (VERIFIED 2026-09-03:
     // pinned_time "2026-09-03T20:15:38Z" + is_starred true). Both are null on an unpinned chat
-    // AND on a chat whose pin state we cannot see, so absence proves nothing -> never false.
-    isPinned: it.pinned_time != null || it.is_starred === true ? true : undefined,
+    // AND on a chat whose pin state we cannot see, so absence proves nothing. Only an
+    // explicit false signal together with a null pin timestamp proves the negative here.
+    isPinned: it.pinned_time != null || it.is_starred === true
+      ? true : it.is_starred === false && it.pinned_time === null ? false : undefined,
     // Project chats carry a "g-p-" gizmo. A plain "g-" gizmo is a custom GPT, not a project.
-    projectId: it.gizmo_id?.startsWith('g-p-') ? it.gizmo_id : null,
+    projectId: isProjectId(it.gizmo_id) ? it.gizmo_id
+      : it.gizmo_id === null || (typeof it.gizmo_id === 'string' && /^g-(?!p-)[A-Za-z0-9_-]+$/.test(it.gizmo_id))
+        ? null : undefined,
     isTemporary: it.is_temporary_chat,
     archived: it.is_archived,
     source: 'api',
@@ -138,10 +157,11 @@ export async function listPage(offset = 0, limit = 28) {
   };
 }
 
-const patch = (id: string, body: Record<string, unknown>) =>
-  call(endpoints.conversation(id), { method: 'PATCH', body: JSON.stringify(body) }).then(
-    () => undefined,
-  );
+const patch = async (id: string, body: Record<string, unknown>): Promise<void> => {
+  const res = await call(endpoints.conversation(id), { method: 'PATCH', body: JSON.stringify(body) });
+  const result = await res.json().catch(() => null);
+  if (result?.success !== true) throw new ApiError(422, 'unconfirmed_write_response');
+};
 
 /** The web app's own page size. The real maximum is unknown, so do not raise it. */
 export const PAGE_LIMIT = 28;
@@ -274,6 +294,11 @@ export async function verify(id: string): Promise<VerifyResult> {
     if (e.status !== 404) return { state: 'error', code: e.status };
     return { state: e.code === 'conversation_deleted' ? 'deleted' : 'missing' };
   }
-  return { state: 'present', archived: (await res.json())?.is_archived };
+  const body = await res.json().catch(() => null);
+  // The response must name the exact conversation requested. Unknown schema fails closed.
+  // This still downloads the full detail response; see PRIVACY.md and PRE_RELEASE_AUDIT.md.
+  if (body?.conversation_id !== id || typeof body?.is_archived !== 'boolean') {
+    return { state: 'error', code: 422 };
+  }
+  return { state: 'present', archived: body.is_archived };
 }
-

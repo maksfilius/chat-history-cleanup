@@ -1,3 +1,5 @@
+import { isConversationId } from '../types/identifiers.ts';
+
 /**
  * Every ChatGPT DOM assumption lives here. Nothing else may contain a raw selector.
  * Prefer href/aria/data-testid over generated class names.
@@ -24,7 +26,7 @@ export const selectors = {
  * Conversation ids are UUIDs in the /c/ path, optionally nested under a project:
  *   /c/<uuid>  or  /g/g-p-<projectId>/c/<uuid>
  */
-const ID_RE = /^\/(?:g\/(g-p-[A-Za-z0-9_-]+)\/)?c\/([0-9a-fA-F-]{36})(?:[/?#]|$)/;
+const ID_RE = /^\/(?:g\/(g-p-[A-Za-z0-9_-]+)\/)?c\/([^/]+)\/?$/;
 
 export interface ParsedHref {
   id: string;
@@ -34,14 +36,14 @@ export interface ParsedHref {
 
 export function parseConversationHref(href: string | null | undefined): ParsedHref | null {
   if (!href) return null;
-  let path = href;
-  if (href.startsWith('http')) {
-    try {
-      path = new URL(href).pathname;
-    } catch {
-      return null;
-    }
+  let url: URL;
+  try {
+    url = new URL(href, 'https://chatgpt.com');
+  } catch {
+    return null;
   }
-  const m = ID_RE.exec(path);
-  return m ? { id: m[2].toLowerCase(), projectId: m[1] ?? null } : null;
+  if (url.origin !== 'https://chatgpt.com') return null;
+  const m = ID_RE.exec(url.pathname);
+  const id = m?.[2].toLowerCase();
+  return isConversationId(id) ? { id, projectId: m?.[1] ?? null } : null;
 }

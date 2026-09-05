@@ -1,13 +1,14 @@
 import { asApiError, type VerifyResult } from '../chatgpt/api.ts';
 import type { ConversationAdapter } from '../types/conversation.ts';
+import { isConversationId } from '../types/identifiers.ts';
 
 export type OpKind = 'archive' | 'remove';
 export type OpState = 'queued' | 'running' | 'retry_wait' | 'done' | 'failed';
 
 export interface Operation {
-  id: string;
-  title: string;
-  kind: OpKind;
+  readonly id: string;
+  readonly title: string;
+  readonly kind: OpKind;
   state: OpState;
   attempts: number;
   /** Why it failed, in words a user can act on. */
@@ -27,6 +28,24 @@ export interface QueueDeps {
 export const MAX_ATTEMPTS = 4;
 const BASE_BACKOFF_MS = 1000;
 
+/** Validate the whole batch; never salvage selected jobs from an ambiguous record. */
+export function validOperations(value: unknown, kind: unknown): value is Operation[] {
+  if ((kind !== 'archive' && kind !== 'remove') || !Array.isArray(value)) return false;
+  const seen = new Set<string>();
+  return value.every((op: unknown) => {
+    if (!op || typeof op !== 'object') return false;
+    const o = op as Record<string, unknown>;
+    if (!isConversationId(o.id) || seen.has(o.id) || o.kind !== kind || typeof o.title !== 'string' ||
+      typeof o.state !== 'string' || !['queued', 'running', 'retry_wait', 'done', 'failed'].includes(o.state) ||
+      !Number.isSafeInteger(o.attempts) || (o.attempts as number) < 0 || (o.attempts as number) > MAX_ATTEMPTS ||
+      (o.error !== undefined && typeof o.error !== 'string')) return false;
+    if ((o.state === 'running' || o.state === 'retry_wait') && o.attempts === 0) return false;
+    if (o.state === 'retry_wait' && o.attempts === MAX_ATTEMPTS) return false;
+    seen.add(o.id);
+    return true;
+  });
+}
+
 /** Exponential backoff with jitter, so a rate limit does not resync every retry. */
 export const backoffMs = (attempt: number, rand = Math.random) =>
   Math.round(BASE_BACKOFF_MS * 2 ** (attempt - 1) * (0.75 + rand() * 0.5));
@@ -37,11 +56,17 @@ export const backoffMs = (attempt: number, rand = Math.random) =>
  * Two rules it exists to enforce:
  *  - every action is confirmed against the detail endpoint, never against the listing, which
  *    lags writes badly (see docs/chatgpt-integration.md);
- *  - an action the server reports as already applied counts as SUCCESS, never as a retry.
- *    That is what makes a resumed batch safe to re-run.
+ *  - a confirmed already-deleted result satisfies a delete, but never an archive.
+ *
+ * RELEASE BLOCKER: write/verify retry and reload recovery can still resend completed writes.
+ * The bounded audit fixes validate identities, not durable exactly-once execution (audit F04).
  */
 export class OperationQueue {
-  readonly ops: Operation[];
+  private operations: Operation[];
+  /** Detached snapshots prevent UI/persistence callbacks from changing live target identities. */
+  get ops(): Operation[] {
+    return this.operations.map((op) => Object.freeze({ ...op }));
+  }
   readonly kind: OpKind;
   /** Set when the batch halted itself rather than being stopped by the user. */
   haltedBy: 'rate-limit' | 'signed-out' | null = null;
@@ -52,13 +77,15 @@ export class OperationQueue {
   constructor(items: { id: string; title: string }[], kind: OpKind, deps: QueueDeps) {
     this.kind = kind;
     this.deps = deps;
-    this.ops = items.map((i) => ({ ...i, kind, state: 'queued', attempts: 0 }));
+    this.operations = items.map((i) => ({ id: i.id, title: i.title, kind, state: 'queued', attempts: 0 }));
+    if (!validOperations(this.operations, kind)) throw new Error('Invalid or duplicate queue targets');
   }
 
   /** Rebuilds a queue from a persisted batch, keeping what already settled. */
   static restore(kind: OpKind, ops: Operation[], deps: QueueDeps): OperationQueue {
     const q = new OperationQueue([], kind, deps);
-    q.ops.push(...ops);
+    if (!validOperations(ops, kind)) throw new Error('Invalid saved queue');
+    q.operations.push(...ops.map((op) => ({ ...op })));
     return q;
   }
 
@@ -69,10 +96,10 @@ export class OperationQueue {
   }
 
   get pending() {
-    return this.ops.filter((o) => o.state !== 'done' && o.state !== 'failed').length;
+    return this.operations.filter((o) => o.state !== 'done' && o.state !== 'failed').length;
   }
   get done() {
-    return this.ops.filter((o) => o.state === 'done').length;
+    return this.operations.filter((o) => o.state === 'done').length;
   }
   get failed() {
     return this.ops.filter((o) => o.state === 'failed');
@@ -103,7 +130,7 @@ export class OperationQueue {
     if (this.running) return;
     this.running = true;
     try {
-      for (const op of this.ops) {
+      for (const op of this.operations) {
         if (this.stopped) return;
         if (op.state === 'done' || op.state === 'failed') continue; // resume-safe
         await this.runOne(op);
@@ -130,11 +157,10 @@ export class OperationQueue {
         await act.call(this.deps.adapter, op.id);
       } catch (err) {
         const e = asApiError(err);
-        // The conversation is already gone. For a delete that is the outcome we wanted; for an
-        // archive it is no longer in the way either. Either way: done, never a retry. This is
-        // what makes a resumed batch safe to re-run.
-        if (e.code === 'conversation_deleted') {
-          return this.settle(op, 'done');
+        // Only the exact deleted error satisfies deletion. It cannot prove an archive.
+        if (e.status === 404 && e.code === 'conversation_deleted') {
+          return op.kind === 'remove' ? this.settle(op, 'done')
+            : this.settle(op, 'failed', 'conversation was deleted; it was not archived');
         }
         // Signed out: every following operation would fail the same way.
         if (e.status === 401 || e.status === 403) return this.halt(op, 'signed-out');
@@ -162,10 +188,14 @@ export class OperationQueue {
       // The read-back failed for an account-level reason, not a per-conversation one. Retrying
       // here would re-issue a destructive action we already sent, four times over, and then
       // fail every remaining conversation against the same wall. Halt instead: the batch stays
-      // resumable, and on resume the action is re-issued safely because both actions are
-      // idempotent.
+      // resumable, but the current resume path still reissues the action (audit F04).
       if (v.state === 'error' && (v.code === 429 || v.code === 401 || v.code === 403)) {
         return this.halt(op, v.code === 429 ? 'rate-limit' : 'signed-out');
+      }
+
+      if ((v.state === 'error' && v.code >= 400 && v.code < 500) ||
+        v.state === 'missing' || (op.kind === 'archive' && v.state === 'deleted')) {
+        return this.settle(op, 'failed', unconfirmed(op.kind, v));
       }
 
       if (op.attempts >= MAX_ATTEMPTS) {
@@ -188,11 +218,11 @@ export class OperationQueue {
 /** Did the read-back actually confirm what we asked for? */
 export function settledOk(kind: OpKind, v: VerifyResult): boolean {
   if (kind === 'remove') return v.state === 'deleted';
-  // Archive: a conversation deleted from another tab meanwhile is also "no longer in the way".
-  return (v.state === 'present' && v.archived === true) || v.state === 'deleted';
+  return v.state === 'present' && v.archived === true;
 }
 
 function unconfirmed(kind: OpKind, v: VerifyResult): string {
+  if (kind === 'archive' && v.state === 'deleted') return 'conversation was deleted; it was not archived';
   if (v.state === 'missing') return 'conversation not found';
   if (v.state === 'error') return `could not confirm (${v.code})`;
   return `${kind} did not take effect`;
