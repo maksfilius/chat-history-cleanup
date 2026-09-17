@@ -88,8 +88,8 @@ test('a write is never sent before the intent is durably recorded', async () => 
     },
   });
   await q.run();
-  assert.deepEqual(order, ['persist:dispatched', 'write'],
-    'the dispatched state must reach storage before the destructive call');
+  assert.deepEqual(order, ['persist:dispatched', 'write', 'persist:done'],
+    'intent precedes dispatch and the confirmed result is saved before the queue finishes');
 });
 
 test('work stops when the intent cannot be recorded, instead of writing blindly', async () => {

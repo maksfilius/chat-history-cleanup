@@ -8,6 +8,8 @@ import { loadProtected, setProtected } from '../src/storage/protectedChats.ts';
 import type { ConversationAdapter } from '../src/types/conversation.ts';
 import { chatId } from './fixtures.ts';
 
+const accountId = 'test-account';
+
 /** Minimal chrome.storage.local stand-in for a live extension context. */
 function stubStorage(initial: Record<string, unknown> = {}) {
   const mem: Record<string, unknown> = { ...initial };
@@ -53,6 +55,7 @@ test('an operation that may already have been written comes back as dispatched, 
   await saveBatch({
     kind: 'remove',
     startedAt: 1,
+    accountId,
     ops: [op('a', 'done'), op('b', 'running', 2), op('c', 'retry_wait', 3), op('d', 'queued', 0)],
   });
   const b = await loadBatch();
@@ -69,7 +72,7 @@ test('an operation that may already have been written comes back as dispatched, 
 
 test('a failed operation stays failed and is not retried by the resume', async () => {
   stubStorage();
-  await saveBatch({ kind: 'remove', startedAt: 1, ops: [op('a', 'failed')] });
+  await saveBatch({ kind: 'remove', startedAt: 1, accountId, ops: [op('a', 'failed')] });
   assert.equal((await loadBatch())!.ops[0].state, 'failed');
 });
 
@@ -86,7 +89,7 @@ test('malformed saved batches stop loading; absent storage is empty', async () =
 
 test('clearBatch removes the record', async () => {
   const mem = stubStorage();
-  await saveBatch({ kind: 'remove', startedAt: 1, ops: [op('a', 'queued')] });
+  await saveBatch({ kind: 'remove', startedAt: 1, accountId, ops: [op('a', 'queued')] });
   await clearBatch();
   assert.equal('activeBatch' in mem, false);
   assert.equal(await loadBatch(), null);
@@ -106,6 +109,7 @@ test('a resume never repeats a write whose outcome the server already shows', as
   await saveBatch({
     kind: 'remove',
     startedAt: 1,
+    accountId,
     ops: [op('a', 'done'), op('b', 'done'), op('c', 'running'), op('d', 'queued')],
   });
   const b = await loadBatch();
@@ -129,7 +133,7 @@ test('a dispatched write that provably did NOT land is sent, once', async () => 
     archive: async () => {},
     remove: async (id) => void calls.push(id),
   };
-  await saveBatch({ kind: 'remove', startedAt: 1, ops: [op('c', 'running')] });
+  await saveBatch({ kind: 'remove', startedAt: 1, accountId, ops: [op('c', 'running')] });
   const b = await loadBatch();
   let reads = 0;
   const q = OperationQueue.restore(b!.kind, b!.ops, {
@@ -152,7 +156,7 @@ test('a dispatched write with an unknowable outcome is reported, never repeated'
     archive: async () => {},
     remove: async (id) => void calls.push(id),
   };
-  await saveBatch({ kind: 'remove', startedAt: 1, ops: [op('c', 'running')] });
+  await saveBatch({ kind: 'remove', startedAt: 1, accountId, ops: [op('c', 'running')] });
   const b = await loadBatch();
   const q = OperationQueue.restore(b!.kind, b!.ops, {
     adapter,
@@ -189,15 +193,15 @@ test('already deleted satisfies delete, but must never be reported as archived',
   }
 });
 
-test('storage degrades quietly when the extension context is invalidated', async () => {
+test('storage writes fail quietly and safety-critical reads fail closed after invalidation', async () => {
   stubInvalidatedContext();
-  // None of these may throw: the queue calls saveBatch on every state transition, and a
-  // synchronous throw there escaped as an unhandled rejection and could break a live batch.
-  assert.equal(await saveBatch({ kind: 'remove', startedAt: 1, ops: [op('a', 'queued')] }), false);
+  // Queue writes report failure instead of throwing so the queue can halt cleanly. Reads must
+  // distinguish an unavailable backend from an actually empty recovery/protection record.
+  assert.equal(await saveBatch({ kind: 'remove', startedAt: 1, accountId, ops: [op('a', 'queued')] }), false);
   assert.equal(await clearBatch(), false);
-  assert.equal(await loadBatch(), null);
-  assert.deepEqual(await loadProtected(), new Set());
-  assert.deepEqual(await setProtected('a', true), { ids: new Set(['a']), saved: false });
+  await assert.rejects(loadBatch(), /recovery storage is unavailable/);
+  await assert.rejects(loadProtected(), /protection storage is unavailable/);
+  await assert.rejects(setProtected('a', true), /protection storage is unavailable/);
   assert.equal(extensionAlive(), false);
 });
 

@@ -3,10 +3,6 @@ import { daysSince } from './age.ts';
 import { protectionMap } from './protections.ts';
 
 /**
- * NOT USED BY FREE v1. Free is manual selection only; deciding *what* to clean is the Pro
- * story, which is not part of this release. Nothing in the Free panel imports this module, so it is
- * tree-shaken out of the shipped bundle — it is kept whole and tested so Pro can pick it up.
- *
  * A rule returns the reason it matched, or null. Matching and explaining are one function on
  * purpose: a separate `explain()` drifts away from the condition it is supposed to describe,
  * and the UI has to justify every suggestion.
@@ -86,7 +82,6 @@ export interface ReviewSet {
  * The single choke point where cleanup rules meet protections. Rules propose, protections
  * dispose — a protected conversation can never end up in `suggested`, whatever the rules say.
  *
- * Pro-only, like the rest of this module. The Free panel uses `protectionMap` directly.
  */
 export function reviewSet(
   conversations: readonly Conversation[],

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { parseConversationHref } from '../src/chatgpt/selectors.ts';
-import { listAll, mapApiItem } from '../src/chatgpt/api.ts';
+import { listAll, listProjects, mapApiItem } from '../src/chatgpt/api.ts';
 import { daysSince, formatAge } from '../src/cleanup/age.ts';
 import { chatId } from './fixtures.ts';
 
@@ -70,6 +70,12 @@ test('a present-but-null gizmo means "not in a project"; an absent one means unk
   assert.equal(mapApiItem({ ...base } as never).projectId, undefined);
 });
 
+test('malformed project metadata fails safe instead of looking unprotected', () => {
+  const base = { id: UUID, title: 't', create_time: null, update_time: null };
+  assert.equal(mapApiItem({ ...base, gizmo_id: 'g-p-!' } as never).projectId, undefined);
+  assert.equal(mapApiItem({ ...base, gizmo_id: { unexpected: true } } as never).projectId, undefined);
+});
+
 test('age formatting and unknown-age fail-safe', () => {
   const now = Date.parse('2026-09-03T12:00:00Z');
   const ago = (d: number) => now - d * 86_400_000;
@@ -81,7 +87,7 @@ test('age formatting and unknown-age fail-safe', () => {
   assert.equal(daysSince(undefined, now), undefined);
 });
 
-test('listAll pages, dedupes, and reports an incomplete inventory', async () => {
+test('listAll pages, dedupes, excludes gaps, and explains an incomplete inventory', async () => {
   const items = (from: number, n: number) =>
     Array.from({ length: n }, (_, i) => ({
       id: chatId(from + i), title: 't', create_time: null, update_time: null,
@@ -89,7 +95,9 @@ test('listAll pages, dedupes, and reports an incomplete inventory', async () => 
   const pages: Record<number, unknown[]> = { 0: items(0, 28), 28: items(28, 28), 56: items(50, 6) };
   globalThis.fetch = (async (url: string) => {
     const u = String(url);
-    if (u.includes('/api/auth/session')) return json({ accessToken: 'x'.repeat(30) });
+    if (u.includes('/api/auth/session')) {
+      return json({ accessToken: 'x'.repeat(30), account: { id: 'account-1' } });
+    }
     if (u.includes('/gizmos/snorlax/sidebar')) return json({ items: [] });
     const offset = Number(new URL(u, 'https://chatgpt.com').searchParams.get('offset'));
     return json({ items: pages[offset] ?? [], total: 62, limit: 28, offset });
@@ -98,14 +106,69 @@ test('listAll pages, dedupes, and reports an incomplete inventory', async () => 
   const inv = await listAll();
   // 6 of the third page's ids overlap page 2 (an item shifting pages mid-run), so 56 unique.
   assert.equal(inv.conversations.length, 56);
-  assert.equal(inv.complete, false); // must be false so bulk actions refuse to run
+  assert.equal(inv.complete, false);
+  assert.deepEqual(inv.issues, [
+    'ChatGPT did not return every conversation reported by the history list.',
+  ]);
+});
+
+test('a moving total is accepted when pagination reaches the current complete list', async () => {
+  const items = (from: number, n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      id: chatId(from + i), title: 't', create_time: null, update_time: null,
+    }));
+  globalThis.fetch = (async (url: string) => {
+    const u = String(url);
+    if (u.includes('/api/auth/session')) {
+      return json({ accessToken: 'x'.repeat(30), account: { id: 'account-1' } });
+    }
+    if (u.includes('/gizmos/snorlax/sidebar')) return json({ items: [] });
+    const offset = Number(new URL(u, 'https://chatgpt.com').searchParams.get('offset'));
+    return offset === 0
+      ? json({ items: items(0, 28), total: 33, limit: 28, offset })
+      : json({ items: items(28, 6), total: 34, limit: 28, offset });
+  }) as never;
+
+  const inv = await listAll();
+  assert.equal(inv.total, 34);
+  assert.equal(inv.complete, true);
+  assert.deepEqual(inv.issues, []);
+});
+
+test('listProjects follows the current cursor pagination and ignores non-project gizmos', async () => {
+  globalThis.fetch = (async (url: string) => {
+    const u = String(url);
+    if (u.includes('/api/auth/session')) {
+      return json({ accessToken: 'x'.repeat(30), account: { id: 'account-1' } });
+    }
+    const cursor = new URL(u, 'https://chatgpt.com').searchParams.get('cursor');
+    return cursor === null
+      ? json({
+          items: [
+            { gizmo: { gizmo: { id: 'g-p-1', display: { name: 'Project One' } } } },
+            { gizmo: { gizmo: { id: 'g-custom-1', display: { name: 'Custom GPT' } } } },
+          ],
+          cursor: 'next page',
+        })
+      : json({
+          items: [{ gizmo: { gizmo: { id: 'g-p-2', display: { name: 'Project Two' } } } }],
+          cursor: null,
+        });
+  }) as never;
+
+  assert.deepEqual(await listProjects(), [
+    { id: 'g-p-1', name: 'Project One' },
+    { id: 'g-p-2', name: 'Project Two' },
+  ]);
 });
 
 test('listAll includes project conversations the flat listing omits', async () => {
   // The flat endpoint returns 1 conversation; the project holds 2 more that it never lists.
   globalThis.fetch = (async (url: string) => {
     const u = String(url);
-    if (u.includes('/api/auth/session')) return json({ accessToken: 'x'.repeat(30) });
+    if (u.includes('/api/auth/session')) {
+      return json({ accessToken: 'x'.repeat(30), account: { id: 'account-1' } });
+    }
     if (u.includes('/gizmos/snorlax/sidebar')) {
       return json({ items: [{ gizmo: { gizmo: { id: 'g-p-1', display: { name: 'Project One' } } } }] });
     }
@@ -119,7 +182,12 @@ test('listAll includes project conversations the flat listing omits', async () =
       });
     }
     const offset = Number(new URL(u, 'https://chatgpt.com').searchParams.get('offset'));
-    return json({ items: offset === 0 ? [{ id: chatId('flat'), title: 'f', create_time: null, update_time: null }] : [], total: 1 });
+    return json({
+      items: offset === 0 ? [{ id: chatId('flat'), title: 'f', create_time: null, update_time: null }] : [],
+      total: 1,
+      limit: 28,
+      offset,
+    });
   }) as never;
 
   const inv = await listAll();
@@ -131,21 +199,29 @@ test('listAll includes project conversations the flat listing omits', async () =
 });
 
 test('a project that cannot be read makes the inventory incomplete and is named', async () => {
-  // Silently dropping a project would let a broad rule run against a partial account.
+  // The gap must be explicit, while the safely loaded flat chat remains available for review.
   globalThis.fetch = (async (url: string) => {
     const u = String(url);
-    if (u.includes('/api/auth/session')) return json({ accessToken: 'x'.repeat(30) });
+    if (u.includes('/api/auth/session')) {
+      return json({ accessToken: 'x'.repeat(30), account: { id: 'account-1' } });
+    }
     if (u.includes('/gizmos/snorlax/sidebar')) {
       return json({ items: [{ gizmo: { gizmo: { id: 'g-p-1', display: { name: 'Project Two' } } } }] });
     }
     if (u.includes('/gizmos/g-p-1/conversations')) return new Response('nope', { status: 500 });
     const offset = Number(new URL(u, 'https://chatgpt.com').searchParams.get('offset'));
-    return json({ items: offset === 0 ? [{ id: chatId('flat'), title: 'f', create_time: null, update_time: null }] : [], total: 1 });
+    return json({
+      items: offset === 0 ? [{ id: chatId('flat'), title: 'f', create_time: null, update_time: null }] : [],
+      total: 1,
+      limit: 28,
+      offset,
+    });
   }) as never;
 
   const inv = await listAll();
   assert.equal(inv.complete, false);
   assert.deepEqual(inv.unreadProjects, ['Project Two']);
+  assert.deepEqual(inv.issues, ['Some Project conversations could not be read and were excluded.']);
 });
 
 function json(body: unknown) {

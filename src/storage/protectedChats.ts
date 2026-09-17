@@ -1,11 +1,16 @@
-import { readKey, writeKey } from './local.ts';
+import { readKeyState, writeKey } from './local.ts';
 
 /** Manually protected conversation ids, persisted locally. Nothing leaves the browser. */
 const KEY = 'protectedChats';
 
 export async function loadProtected(): Promise<Set<string>> {
-  const stored = await readKey<unknown>(KEY);
-  return new Set(Array.isArray(stored) ? (stored as string[]) : []);
+  const stored = await readKeyState<unknown>(KEY);
+  if (!stored.ok) throw new Error('Local protection storage is unavailable');
+  if (stored.value === undefined) return new Set();
+  if (!Array.isArray(stored.value) || stored.value.some((id) => typeof id !== 'string')) {
+    throw new Error('Local protection storage is invalid');
+  }
+  return new Set(stored.value);
 }
 
 /**
@@ -15,6 +20,13 @@ export async function loadProtected(): Promise<Set<string>> {
  * cannot afford, so the writes queue behind one another.
  */
 let writes: Promise<unknown> = Promise.resolve();
+const LOCK = 'chat-cleanup-protected-chats-v1';
+
+async function updateProtected(id: string, on: boolean) {
+  const ids = await loadProtected();
+  on ? ids.add(id) : ids.delete(id);
+  return { ids, saved: await writeKey(KEY, [...ids]) };
+}
 
 /** Returns the new set plus whether it actually reached storage. */
 export function setProtected(
@@ -22,9 +34,16 @@ export function setProtected(
   on: boolean,
 ): Promise<{ ids: Set<string>; saved: boolean }> {
   const next = writes.then(async () => {
-    const ids = await loadProtected();
-    on ? ids.add(id) : ids.delete(id);
-    return { ids, saved: await writeKey(KEY, [...ids]) };
+    // Each content-script tab has a separate module instance. This lock makes the
+    // read-modify-write atomic across tabs as well as ordered within this one.
+    if (typeof navigator !== 'undefined' && navigator.locks) {
+      return navigator.locks.request(
+        LOCK,
+        { mode: 'exclusive' },
+        () => updateProtected(id, on),
+      );
+    }
+    return updateProtected(id, on);
   });
   writes = next.catch(() => {});
   return next;

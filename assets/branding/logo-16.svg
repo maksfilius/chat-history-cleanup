@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+  <!-- Chat Cleanup mark on the 16px pixel grid: every fill edge lands on a whole pixel, so
+       nothing but the corner radii and the sparkle is antialiased. Tails and the second
+       sparkle are dropped at this size; both bubbles keep their two text bars. -->
+  <path d="M0 3a3 3 0 0 1 3-3h5a3 3 0 0 1 3 3v4a3 3 0 0 1-3 3H3a3 3 0 0 1-3-3Z" fill="#F4F3ED"/>
+  <path d="M1 3.5A2.5 2.5 0 0 1 3.5 1h4A2.5 2.5 0 0 1 10 3.5v2A2.5 2.5 0 0 1 7.5 8h-4A2.5 2.5 0 0 1 1 5.5Z" fill="#202522"/>
+  <path d="M3 3h5v1H3Z" fill="#F4F3ED"/>
+  <path d="M3 5h3v1H3Z" fill="#F4F3ED"/>
+  <path d="M4 8a3 3 0 0 1 3-3h6a3 3 0 0 1 3 3v5a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3Z" fill="#F4F3ED"/>
+  <path d="M5 8.5A2.5 2.5 0 0 1 7.5 6h5A2.5 2.5 0 0 1 15 8.5v4A2.5 2.5 0 0 1 12.5 15h-5A2.5 2.5 0 0 1 5 12.5Z" fill="#202522"/>
+  <path d="M6 9a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2Z" fill="#F4F3ED"/>
+  <path d="M7 9h5v1H7Z" fill="#202522"/>
+  <path d="M7 11h3v1H7Z" fill="#202522"/>
+  <path d="M13.5 0q.55 1.95 2.5 2.5-1.95.55-2.5 2.5-.55-1.95-2.5-2.5Q12.95 1.95 13.5 0Z" fill="#C9F27B"/>
+</svg>

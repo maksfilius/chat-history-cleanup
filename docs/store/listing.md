@@ -1,15 +1,15 @@
-# Chrome Web Store listing
+# Chrome Web Store listing copy
 
-**Draft — do not submit.** `PRE_RELEASE_AUDIT.md` records unresolved release blockers.
+Prepared for the release candidate. The publisher must complete the policy, live-test, privacy
+URL, contact, and graphic-asset items in `RELEASE_READINESS.md` before submission.
 
 ## Name
 
-Chat Cleanup
+Chat Cleanup: Bulk Delete for ChatGPT
 
-## Short description (132 char max)
+## Short description (132 characters maximum)
 
-Select and clean hundreds of ChatGPT chats fast. Bulk archive or delete, protect what matters,
-resume after a reload.
+Select, review, archive, or delete multiple ChatGPT chats safely. Protect important conversations and resume interrupted batches.
 
 ## Category
 
@@ -17,71 +17,89 @@ Productivity
 
 ## Detailed description
 
-ChatGPT lets you delete conversations one at a time. If you have hundreds, that is not a
-workflow — it is an afternoon.
+Review and clean a large ChatGPT conversation history without opening and removing chats one by
+one.
 
-Chat Cleanup adds one thing to ChatGPT: a safe way to clear out old conversations in bulk.
+Chat Cleanup adds a focused cleanup panel directly to ChatGPT. Select conversations manually,
+with Shift-click, all at once, by Project, or with deterministic age presets for 30, 90, 180, and
+365 days. An untitled-chat rule is also included. The extension never scores importance with AI
+and never deletes automatically.
 
-**Built for selecting fast**
-Multi-select, shift-click for a range, select everything at once, or select every chat inside
-one of your Projects in a single click. The Project itself is never touched — only its
-conversations.
+**Review the exact batch**
 
-**What matters is protected**
-Select All and shift ranges skip conversations known to be protected or with unverified metadata.
-You can include a protected chat by ticking it yourself. Selecting a named Project is an explicit
-override for that Project's chats; the current chip also includes pinned/manually protected chats
-inside it. Protection synchronization and freshness still need the fixes listed in the audit.
+Before archive or permanent deletion, the confirmation shows the exact conversation titles and
+total count. Delete requires an explicit confirmation and clearly states that it cannot be undone.
 
-**Review before anything happens**
-You see the exact list before you act. Deletion asks for explicit confirmation and states the
-count. Nothing is ever deleted automatically.
+**Protect important conversations**
 
-**A queue that does not fall over**
-Conversations are processed one at a time, and every action is verified against ChatGPT
-afterwards — a request that returns "OK" is not trusted until the change is confirmed. Rate
-limits and hiccups are retried with backoff. If ChatGPT throttles your account, the batch stops
-cleanly instead of failing everything.
+Pinned chats, chats inside Projects, manually protected chats, and chats with unknown protection
+metadata are excluded from global and rule-based selection. You can still include a protected chat
+by selecting it explicitly; the confirmation identifies the override. The extension changes only
+conversations, never the Project itself.
 
-**Close the tab, keep your progress**
-The extension saves batch progress and offers recovery when reopened. The current implementation
-can repeat a write whose result was not durably recorded. This must be fixed before release.
+**Recover interrupted cleanup**
 
-**Private by construction**
-No separate extension account, developer backend or analytics. Requests go to ChatGPT using your
-existing session. The extension reads titles/dates/project metadata and downloads full conversation
-detail to verify actions; message bodies are not indexed, persisted or uploaded. Batch titles and
-IDs are stored locally. See PRIVACY.md; metadata-only verification or informed opt-in is unresolved.
+Archive runs sequentially and delete uses at most two in-flight conversations. Each result is
+checked against ChatGPT. Rate limits stop the batch cleanly, failures remain visible, and unfinished
+state is stored locally so you can resume after a reload. An uncertain request is reconciled before
+the extension can send it again.
+
+**Local and narrow by design**
+
+There is no Chat Cleanup account, backend, analytics, advertising, or cloud sync. The extension
+runs only on chatgpt.com and sends requests only to ChatGPT through your signed-in session. It asks
+for informed consent before reading history. Verification can download a selected conversation's
+detail response, which may contain messages; message content is not analyzed, retained, or sent to
+the developer. See the linked privacy policy for the complete disclosure.
+
+Chat Cleanup is an independent extension and is not affiliated with or endorsed by OpenAI.
 
 ## Permission justification
 
-- **storage** — remembers which conversations you protected and the state of an unfinished
-  batch, so it can be resumed. Local only.
-- **Host access to chatgpt.com** — the extension only runs on ChatGPT and makes requests only
-  to ChatGPT, using your existing session.
+- **storage** — stores the disclosure-consent version, manually protected conversation IDs, and
+  unfinished queue state in the current Chrome profile so a safe batch can be recovered.
+- **Access to chatgpt.com** — injects the cleanup UI and sends the user-approved list, archive,
+  delete, and verification requests to ChatGPT. No other website is accessed.
 
 ## Single purpose statement
 
-Chat Cleanup has one purpose: reviewing and bulk-archiving or bulk-deleting the user's own
-ChatGPT conversations.
+Chat Cleanup lets a user review and bulk-archive or bulk-delete conversations in their own ChatGPT
+history.
 
-## Data usage disclosures
+## Privacy practices dashboard
 
-- Does the extension handle user data? **Yes:** website content, conversation/project metadata,
-  session authentication information, and full detail responses for verification. Processing and
-  batch storage are local; authenticated cleanup requests go to ChatGPT. Complete the current
-  store dashboard disclosures accordingly before submission.
-- Is data sold to third parties? **No.**
-- Is data used for purposes unrelated to the single purpose? **No.**
-- Is data used to determine creditworthiness or for lending? **No.**
+Disclose conservatively because Chrome requires disclosure even for local-only processing:
 
-Privacy policy: see PRIVACY.md in the repository.
+- **Authentication information:** handled in memory to authenticate requests to ChatGPT; not
+  collected by or transmitted to the developer.
+- **Website content / user-generated content / personal communications:** conversation metadata
+  is displayed locally; selected conversation detail responses can contain message content during
+  result verification. Message content is not retained or transmitted to the developer.
+- **Persistent identifiers:** ChatGPT account/workspace and conversation IDs are used for targeting
+  and recovery; protection and unfinished-batch IDs are stored locally.
+- **Data sale, advertising, credit, unrelated use:** none.
+- **Limited Use certification:** data is used only for the extension's stated cleanup function.
 
-## Screenshots to capture (1280x800)
+Keep the dashboard answers, this listing, the in-product disclosure, and `PRIVACY.md` identical in
+substance.
 
-1. The panel open on ChatGPT, showing the conversation list with protection badges.
-2. After "Select all": the count plus "N protected chats skipped".
-3. Project bulk selection — "Select all chats in a project".
-4. The delete confirmation dialog stating the count.
-5. Batch progress with the counter and bar.
-6. The resume prompt after a reload.
+## Store assets
+
+- 128×128 store icon: `public/icons/icon128.png`.
+- Prepared the 440×280 promotional tile in `docs/store/assets/`. Regenerate it with
+  `npm run build:store-assets`.
+- Capture up to five 1280×800 screenshots from a disposable account:
+  1. First-run disclosure.
+  2. Age preset with protected chats skipped.
+  3. Exact archive/delete review list.
+  4. Live progress or rate-limit pause.
+  5. Completion report or reload/Resume prompt.
+- The 440×280 small promotional tile is ready. A 1400×560 marquee tile is optional.
+- Do not show real names, email addresses, private titles, message text, or account identifiers.
+
+## Publisher fields still required
+
+- Public HTTPS URL hosting `PRIVACY.md`.
+- Working support email and support URL.
+- Primary language and distribution regions.
+- Publisher identity/trader-status fields required for the selected regions.

@@ -1,29 +1,34 @@
-import { apiAdapter, listAll, verify, type Inventory } from '../chatgpt/api.ts';
+import {
+  apiAdapterFor, assertAccountContext, listAll, verify, type Inventory,
+} from '../chatgpt/api.ts';
 import { removeRow } from '../chatgpt/dom.ts';
 import { formatAge } from '../cleanup/age.ts';
+import { allRules, reviewSet, ruleCount, type CleanupRule } from '../cleanup/filters.ts';
 import { protectionMap, protectionSummary } from '../cleanup/protections.ts';
 import { projectGroups, selectAll, selectRange } from '../cleanup/selection.ts';
-import { extensionAlive } from '../storage/local.ts';
+import { extensionAlive, onKeyChange, readKeyState, writeKey } from '../storage/local.ts';
 import { loadProtected, setProtected } from '../storage/protectedChats.ts';
-import { OperationQueue, type OpKind, type Operation } from '../queue/operationQueue.ts';
-import { acquireLease, HEARTBEAT_MS, newOwnerId, releaseLease, renewLease } from '../queue/lease.ts';
+import { OperationQueue, type OpKind, type Operation, type QueueDeps } from '../queue/operationQueue.ts';
+import {
+  acquireLease, HEARTBEAT_MS, newOwnerId, releaseLease, renewLease, withExclusiveBatchLock,
+} from '../queue/lease.ts';
 import { clearBatch, loadRestorePoint, saveBatch } from '../queue/persistence.ts';
 import type { Conversation } from '../types/conversation.ts';
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+const CONSENT_KEY = 'privacyConsentVersion';
+const CONSENT_VERSION = 1;
 
 /**
- * Free v1: manual bulk cleanup. The user decides what goes; the product's job is to make
- * choosing and executing that safe, fast and reversible-where-possible.
- *
- * There are deliberately no date filters or suggested-cleanup rules here — deciding *what*
- * to clean is the Pro story, not part of this release. The filtering primitives still live in
- * src/cleanup/filters.ts, unused by this panel, ready for that work.
+ * The user can select manually or start from a deterministic age/untitled rule. Rules never
+ * infer importance and never include protected chats by default.
  *
  * The list is our own panel rather than checkboxes overlaid on ChatGPT's sidebar: the sidebar
  * is a subset of the truth — it omits every conversation inside a project.
  */
 const CSS = `
+:host{--cc-accent:#d0f2ae;--cc-accent-hover:#e1ffc4;--cc-accent-ink:#24351c;
+ --cc-accent-soft:#d0f2ae12;--cc-accent-border:#d0f2ae40}
 .cc-root{position:fixed;right:16px;bottom:16px;z-index:2147483646;width:420px;max-height:78vh;
  display:flex;flex-direction:column;border-radius:12px;overflow:hidden;
  background:#181818;color:#ececec;border:1px solid #333;box-shadow:0 8px 40px #000a;
@@ -32,9 +37,18 @@ const CSS = `
 .cc-hd b{flex:1;font-size:14px}
 .cc-sum{padding:10px 14px;border-bottom:1px solid #2c2c2c}
 .cc-total{font-size:14px}
-.cc-selrow{display:flex;align-items:baseline;gap:10px;margin-top:2px}
+.cc-selrow{display:flex;align-items:center;gap:6px;margin-top:8px}
 .cc-sel{flex:1;color:#9b9b9b}
-.cc-selrow button{background:none;border:none;color:#7bb0ff;cursor:pointer;padding:0;font:inherit}
+.cc-selrow:has(.cc-none:not(:disabled)) .cc-sel{color:var(--cc-accent)}
+.cc-selrow button{background:#272727;border:1px solid #424242;border-radius:7px;color:#e0e0e0;
+ cursor:pointer;padding:5px 10px;font:inherit;transition:background .15s,border-color .15s}
+.cc-selrow button:not(:disabled):hover{background:#343434;border-color:#626262}
+.cc-selrow .cc-all{background:var(--cc-accent-soft);border-color:var(--cc-accent-border);color:var(--cc-accent)}
+.cc-selrow .cc-all:not(:disabled):hover{background:#d0f2ae24;border-color:var(--cc-accent)}
+.cc-selrow button:disabled{opacity:.4;cursor:not-allowed}
+.cc-rules{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:9px}
+.cc-rules-label{color:#8b8b8b;font-size:12px;margin-right:2px}
+.cc-root :is(button,input):focus-visible,.cc-open:focus-visible{outline:2px solid var(--cc-accent);outline-offset:3px}
 .cc-note{margin-top:6px;color:#8b8b8b;font-size:12px;white-space:pre-line}
 .cc-grp{display:flex;align-items:center;gap:8px;padding:9px 14px 7px;border-top:1px solid #2c2c2c;
  background:#1c1c1c;cursor:pointer;position:sticky;top:0}
@@ -49,19 +63,21 @@ const CSS = `
 .cc-grp:hover .cc-grp-hint{color:#9b9b9b}
 .cc-grp-name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cc-grp-meta{color:#8b8b8b;font-size:12px;flex:1;white-space:nowrap}
-.cc-grp button{background:none;border:none;color:#7bb0ff;cursor:pointer;padding:0;font:inherit;flex:none}
+.cc-grp button{background:none;border:none;color:var(--cc-accent);cursor:pointer;padding:0;font:inherit;flex:none}
 .cc-row.cc-in-grp{padding-left:32px}
 .cc-chip{padding:4px 9px;border-radius:999px;border:1px solid #3a3a3a;background:#222;color:#d4d4d4;cursor:pointer;font:12px system-ui,sans-serif}
-.cc-chip[aria-pressed="true"]{background:#2f4f43;border-color:#4a8;color:#dff}
+.cc-chip[aria-pressed="true"]{background:var(--cc-accent-soft);border-color:var(--cc-accent-border);color:var(--cc-accent)}
 .cc-chip:disabled{opacity:.35;cursor:not-allowed}
 .cc-chip b{font-weight:600;opacity:.75;margin-left:5px}
-.cc-list{overflow:auto;flex:1;min-height:120px}
+.cc-list{overflow:auto;flex:1;min-height:0}
 .cc-lock{background:none;border:none;cursor:pointer;padding:0 2px;font-size:12px;flex:none;opacity:.3}
 .cc-lock[aria-pressed="true"]{opacity:1}
 .cc-row.cc-prot .cc-t{color:#9b9b9b}
 .cc-row{display:flex;gap:10px;align-items:center;padding:8px 14px;cursor:pointer}
 .cc-row:hover{background:#232323}
-.cc-row input{margin:0;flex:none;cursor:pointer}
+.cc-row input{margin:0;flex:none;cursor:pointer;accent-color:var(--cc-accent)}
+.cc-row:has(input:checked){background:var(--cc-accent-soft)}
+.cc-row:has(input:checked):hover{background:#d0f2ae1c}
 .cc-t{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cc-age{color:#8b8b8b;font-variant-numeric:tabular-nums;flex:none}
 .cc-tag{font-size:11px;color:#c8a15a;border:1px solid #5a4a2a;border-radius:4px;padding:0 5px;flex:none}
@@ -71,23 +87,58 @@ const CSS = `
 .cc-x{background:none;border:none;color:#9b9b9b;font-size:18px;cursor:pointer;line-height:1}
 .cc-warn{padding:8px 14px;background:#3a2418;color:#ffb782;border-bottom:1px solid #533}
 .cc-dlg{position:absolute;inset:0;background:#000c;display:flex;align-items:center;justify-content:center;padding:20px}
-.cc-dlg>div{background:#1f1f1f;border:1px solid #3a3a3a;border-radius:10px;padding:16px;max-width:330px}
+.cc-dlg>div{background:#1f1f1f;border:1px solid #3a3a3a;border-radius:10px;padding:16px;max-width:330px;
+ max-height:100%;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden}
 .cc-dlg h3{margin:0 0 8px;font-size:14px}
-.cc-dlg p{margin:0 0 14px;color:#b4b4b4;white-space:pre-line}
+.cc-dlg p{margin:0 0 14px;color:#b4b4b4;white-space:pre-line;overflow:auto;min-height:0}
+.cc-dlg-items{max-height:150px;overflow:auto;margin:0 0 14px;padding:8px 8px 8px 28px;
+ border:1px solid #393939;border-radius:7px;color:#c9c9c9;background:#181818}
+.cc-dlg-items li{padding:2px 0;overflow-wrap:anywhere}
 .cc-dlg .cc-danger{background:#7f1d1d;border-color:#a33}
-.cc-dlg-btns{display:flex;gap:8px}
+.cc-dlg-btns{display:flex;gap:8px;flex:none}
 .cc-dlg-btns button{flex:1;padding:8px;border-radius:8px;border:1px solid #3a3a3a;background:#2a2a2a;color:#ececec;cursor:pointer}
+.cc-ft .cc-primary,.cc-ft .cc-back,.cc-dlg-btns .cc-ok:not(.cc-danger){
+ background:var(--cc-accent);border-color:var(--cc-accent);color:var(--cc-accent-ink);font-weight:600}
+.cc-ft .cc-primary:not(:disabled):hover,.cc-ft .cc-back:hover,.cc-dlg-btns .cc-ok:not(.cc-danger):hover{
+ background:var(--cc-accent-hover);border-color:var(--cc-accent-hover)}
 .cc-prog{padding:14px;display:flex;flex-direction:column;gap:10px}
+.cc-stat{margin:0;font:inherit}
 .cc-bar{height:6px;border-radius:3px;background:#2c2c2c;overflow:hidden}
-.cc-bar>i{display:block;height:100%;background:#4a8;transition:width .2s}
+.cc-bar>i{display:block;height:100%;background:var(--cc-accent);transition:width .2s}
+.cc-result{text-align:center;padding:18px 12px 12px}
+.cc-result-icon{width:80px;height:80px;margin:0 auto 18px;border-radius:50%;
+ color:#91a4b7;background:#242b32;display:grid;place-items:center}
+.cc-result-icon svg{width:64px;height:64px;fill:none;stroke:currentColor;stroke-width:2.5;
+ stroke-linecap:round;stroke-linejoin:round}
+.cc-result-icon circle{stroke-width:1;opacity:.35}
+.cc-success .cc-result-icon{color:var(--cc-accent);background:radial-gradient(circle,#35462a,#252e20);
+ box-shadow:0 0 0 7px #d0f2ae09,0 0 35px #d0f2ae12;animation:cc-pop .55s cubic-bezier(.2,.8,.2,1) both}
+.cc-success .cc-check{stroke-dasharray:40;stroke-dashoffset:0;animation:cc-check .4s .2s ease both}
+.cc-result-kicker{margin:0 0 6px;color:#a9b1ba;font-size:11px;letter-spacing:.1em;text-transform:uppercase}
+.cc-success .cc-result-kicker{color:var(--cc-accent)}
+.cc-result .cc-stat{font-size:23px;line-height:1.25;font-weight:600;letter-spacing:-.5px}
+.cc-result-copy{margin:10px auto 0;color:#a4a4a4;max-width:290px;line-height:1.6}
+.cc-attention .cc-result-icon{color:#efbd7f;background:#352b20}
+.cc-ft .cc-back{font:600 13px system-ui,sans-serif;
+ padding:10px 12px;transition:background .15s}
+.cc-empty{padding:36px 24px;text-align:center;color:#9b9b9b}
+.cc-empty b{display:block;color:#ececec;font-size:15px;margin-bottom:6px}
+@keyframes cc-pop{from{opacity:0;transform:scale(.75)}to{opacity:1;transform:scale(1)}}
+@keyframes cc-check{from{stroke-dashoffset:40}to{stroke-dashoffset:0}}
+@media(prefers-reduced-motion:reduce){
+ .cc-success .cc-result-icon,.cc-success .cc-check{animation:none}
+ .cc-bar>i,.cc-selrow button,.cc-ft .cc-back{transition:none}
+}
 .cc-fail{color:#ff9b9b;font-size:12px;max-height:140px;overflow:auto}
 .cc-fail div{padding:2px 0}
-.cc-open{position:fixed;right:16px;bottom:16px;z-index:2147483646;padding:10px 16px;border-radius:999px;
- border:1px solid #3a3a3a;background:#181818;color:#ececec;cursor:pointer;font:13px system-ui,sans-serif;
- box-shadow:0 4px 20px #0008}
+.cc-open{position:fixed;right:16px;bottom:16px;z-index:2147483646;display:flex;align-items:center;gap:8px;
+ padding:10px 16px;border-radius:12px;border:1px solid var(--cc-accent);background:var(--cc-accent);
+ color:var(--cc-accent-ink);cursor:pointer;font:600 13px system-ui,sans-serif;box-shadow:0 4px 20px #0008}
+.cc-open:hover{background:var(--cc-accent-hover)}
 `;
 
-export function createUi(): HTMLElement {
+/** Optional presentation-only styles let the landing highlight the real launch button. */
+export function createUi(extraStyles = ''): HTMLElement {
   const host = document.createElement('div');
   const root = host.attachShadow({ mode: 'closed' });
   // Content scripts share the DOM with page scripts. Programmatic clicks/change events must
@@ -100,7 +151,7 @@ export function createUi(): HTMLElement {
       }
     }, { capture: true });
   }
-  root.innerHTML = `<style>${CSS}</style><button class="cc-open">Clean up</button>`;
+  root.innerHTML = `<style>${CSS}${extraStyles}</style><button class="cc-open">Clean up</button>`;
 
   const selected = new Set<string>();
   /** Identifies this panel as a batch owner, so two tabs cannot run the same work. */
@@ -127,24 +178,33 @@ export function createUi(): HTMLElement {
       <div class="cc-sum">
         <div class="cc-total">Loading…</div>
         <div class="cc-selrow"><span class="cc-sel">0 selected</span>
-          <button class="cc-none" hidden>Clear</button><button class="cc-all">Select all</button></div>
+          <button class="cc-none" disabled>Clear</button><button class="cc-all" disabled>Select all</button></div>
+        <div class="cc-rules" aria-label="Select cleanup candidates by rule"></div>
         <div class="cc-note" hidden></div>
       </div>
       <div class="cc-list"></div>
-      <div class="cc-ft"><button disabled>Archive</button><button disabled>Delete…</button></div>`;
+      <div class="cc-ft"><button class="cc-primary" disabled>Archive</button><button disabled>Delete…</button></div>`;
     root.appendChild(el);
 
     const list = el.querySelector('.cc-list') as HTMLElement;
+    const summary = el.querySelector('.cc-sum') as HTMLElement;
     const total = el.querySelector('.cc-total') as HTMLElement;
     const selCount = el.querySelector('.cc-sel') as HTMLElement;
     const note = el.querySelector('.cc-note') as HTMLElement;
     const clearBtn = el.querySelector('.cc-none') as HTMLButtonElement;
+    const allBtn = el.querySelector('.cc-all') as HTMLButtonElement;
+    const rulesEl = el.querySelector('.cc-rules') as HTMLElement;
     const warn = el.querySelector('.cc-warn') as HTMLElement;
     let [archiveBtn, deleteBtn] = [...el.querySelectorAll('.cc-ft button')] as HTMLButtonElement[];
-    (el.querySelector('.cc-x') as HTMLElement).onclick = () => {
+    let cancelReview: (() => void) | null = null;
+    let detachProtectionListener = () => {};
+    const closePanel = () => {
+      cancelReview?.();
+      detachProtectionListener();
       el.remove();
       openBtn.style.display = '';
     };
+    (el.querySelector('.cc-x') as HTMLElement).onclick = closePanel;
 
     let protectedBy = new Map<string, string>();
     let manual = new Set<string>();
@@ -158,6 +218,7 @@ export function createUi(): HTMLElement {
     const expanded = new Set<string>();
     /** Exactly the conversations currently drawn, in draw order — what a shift-range spans. */
     let visible: Conversation[] = [];
+    let activeRuleKey: string | null = null;
 
     const conversations = () => inventory?.conversations ?? [];
 
@@ -166,13 +227,50 @@ export function createUi(): HTMLElement {
      * report the user has not dismissed yet, so every path checks this one flag.
      */
     let reportOpen = false;
+    let reviewing = false;
+    const canSelect = () => ready && !reportOpen && !reviewing && !batchInFlight;
 
     /** Header and project chips. Never touches the list area. */
     const paintSummary = () => {
       total.textContent = plural(conversations().length, 'conversation');
       selCount.textContent = `${selected.size} selected`;
-      clearBtn.hidden = selected.size === 0;
+      summary.hidden = reportOpen;
+      summary.inert = reportOpen || reviewing;
+      clearBtn.disabled = !canSelect() || selected.size === 0;
+      allBtn.disabled = !canSelect() || conversations().length === 0;
+      paintRules();
     };
+
+    function paintRules() {
+      if (!inventory) {
+        rulesEl.replaceChildren();
+        return;
+      }
+      const label = document.createElement('span');
+      label.className = 'cc-rules-label';
+      label.textContent = 'Select:';
+      const buttons = allRules.map((rule) => {
+        const button = document.createElement('button');
+        button.className = 'cc-chip';
+        button.type = 'button';
+        button.setAttribute('aria-pressed', String(activeRuleKey === rule.key));
+        const count = ruleCount(conversations(), rule);
+        const short = rule.key === 'age-30' ? '30d+'
+          : rule.key === 'age-90' ? '90d+'
+            : rule.key === 'age-180' ? '180d+'
+              : rule.key === 'age-365' ? '1y+'
+                : rule.label;
+        button.textContent = short;
+        const badge = document.createElement('b');
+        badge.textContent = String(count);
+        button.append(badge);
+        button.title = `Select ${rule.label.toLowerCase()} (protected chats stay unselected)`;
+        button.disabled = !canSelect() || count === 0;
+        button.onclick = () => applyRule(rule, count);
+        return button;
+      });
+      rulesEl.replaceChildren(label, ...buttons);
+    }
 
     const refreshSummary = () => {
       protectedBy = protectionMap(conversations(), manual);
@@ -185,16 +283,35 @@ export function createUi(): HTMLElement {
       render();
     };
 
+    // Protection changes made in another ChatGPT tab must be visible before this tab performs
+    // another bulk selection. The Web Lock in setProtected prevents cross-tab lost updates;
+    // this listener keeps the already-open review list in sync with the durable value.
+    const protectionChange = (value: unknown) => {
+      if (value !== undefined &&
+        (!Array.isArray(value) || value.some((id) => typeof id !== 'string'))) {
+        warnStorageLost();
+        return;
+      }
+      manual = new Set(
+        Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : [],
+      );
+      if (ready && el.isConnected) refresh();
+    };
     /**
      * The extension was reloaded or auto-updated while this tab stayed open, orphaning the
      * content script. Everything that talks to ChatGPT still works — only chrome.* is gone —
      * so say exactly what is lost and what fixes it.
      */
     const warnStorageLost = () => {
+      ready = false;
+      archiveBtn.disabled = true;
+      deleteBtn.disabled = true;
+      clearBtn.disabled = true;
+      allBtn.disabled = true;
       warn.hidden = false;
       warn.textContent =
-        'The extension was updated, so this page can no longer save protected chats or batch ' +
-        'progress. Reload the page to restore it — cleanup itself still works.';
+        'Local safety state is unavailable, so cleanup has been disabled. Reload the page before ' +
+        'selecting, archiving or deleting chats.';
     };
 
     const setNote = (text: string) => {
@@ -207,7 +324,8 @@ export function createUi(): HTMLElement {
      * look like a bug; saying so turns it into a safety feature the user can see.
      */
     const applyBulk = (r: { ids: string[]; skipped: number }, what: string) => {
-      if (!ready) return;
+      if (!canSelect()) return;
+      activeRuleKey = null;
       for (const id of r.ids) selected.add(id);
       setNote(
         `${plural(r.ids.length, 'chat')} selected${what}` +
@@ -217,13 +335,28 @@ export function createUi(): HTMLElement {
       render();
     };
 
+    const applyRule = (rule: CleanupRule, matched: number) => {
+      if (!canSelect() || !inventory) return;
+      const review = reviewSet(conversations(), [rule], manual);
+      selected.clear();
+      for (const id of review.suggested.keys()) selected.add(id);
+      activeRuleKey = rule.key;
+      const skipped = matched - review.suggested.size;
+      setNote(
+        `${plural(review.suggested.size, 'chat')} selected by “${rule.label}”` +
+          (skipped ? `\n${plural(skipped, 'protected chat')} skipped` : ''),
+      );
+      anchor = null;
+      render();
+    };
+
     const render = () => {
       if (!inventory || !ready) return;
       paintSummary();
       if (reportOpen) return; // the report is on screen; do not rebuild the list under it
-      // An incomplete inventory must never drive a bulk action: acting on a partial list is
-      // how a cleanup tool deletes the wrong things.
-      const blocked = selected.size === 0 || !inventory.complete;
+      // A partial read can omit chats, but it cannot retarget the stable IDs already reviewed.
+      // The adapter excludes records with conflicting protection metadata before they get here.
+      const blocked = selected.size === 0 || !canSelect();
       archiveBtn.disabled = blocked;
       deleteBtn.disabled = blocked;
       archiveBtn.textContent = selected.size ? `Archive ${selected.size}` : 'Archive';
@@ -254,6 +387,7 @@ export function createUi(): HTMLElement {
               inGroup,
             },
             (on, shift) => {
+              if (!canSelect()) return;
               if (shift && anchor !== null) {
                 // The range spans what the user can actually see, not the underlying
                 // inventory: with folders collapsed the two orders are different, and a
@@ -262,14 +396,28 @@ export function createUi(): HTMLElement {
                 return;
               }
               on ? selected.add(c.id) : selected.delete(c.id);
+              activeRuleKey = null;
               anchor = index;
               setNote('');
               render();
             },
             async () => {
-              const r = await setProtected(c.id, !manual.has(c.id));
+              if (!canSelect()) return;
+              const protecting = !manual.has(c.id);
+              let r: Awaited<ReturnType<typeof setProtected>>;
+              try {
+                r = await setProtected(c.id, protecting);
+              } catch {
+                warnStorageLost();
+                return;
+              }
               manual = r.ids;
-              if (!r.saved) warnStorageLost();
+              if (protecting) selected.delete(c.id);
+              activeRuleKey = null;
+              if (!r.saved) {
+                ready = false;
+                warnStorageLost();
+              }
               refresh();
             },
           ),
@@ -287,7 +435,9 @@ export function createUi(): HTMLElement {
             anchor = null;
             render();
           }, () => {
+            if (!canSelect()) return;
             if (chosenHere === g.ids.length) {
+              activeRuleKey = null;
               for (const id of g.ids) selected.delete(id);
               setNote(`Deselected ${plural(g.ids.length, 'chat')} in "${g.name}"`);
               anchor = null;
@@ -306,13 +456,18 @@ export function createUi(): HTMLElement {
       }
 
       list.replaceChildren(...nodes);
+      if (!convs.length) {
+        list.innerHTML = '<div class="cc-empty"><b>You’re all caught up</b>No chats left in this list.</div>';
+      }
     };
 
-    (el.querySelector('.cc-all') as HTMLElement).onclick = () => {
+    allBtn.onclick = () => {
       applyBulk(selectAll(conversations(), protectedBy), '');
     };
     clearBtn.onclick = () => {
+      if (!canSelect()) return;
       selected.clear();
+      activeRuleKey = null;
       anchor = null;
       setNote('');
       render();
@@ -352,28 +507,122 @@ export function createUi(): HTMLElement {
      * An interrupted batch is never resumed on its own — the user decides. Discarding only
      * forgets the record; it never undoes what already happened.
      */
-    async function offerResume(b: { kind: OpKind; startedAt: number; ops: Operation[] }) {
+    const verificationDisclosure =
+      'To verify each result, Chat Cleanup downloads that conversation’s detail response from ' +
+      'ChatGPT. The response may contain message content; message content is not stored, analyzed ' +
+      'or sent to the developer.';
+
+    async function ensureDataConsent(): Promise<'allowed' | 'declined' | 'blocked'> {
+      const stored = await readKeyState<unknown>(CONSENT_KEY);
+      if (!stored.ok) {
+        warnStorageLost();
+        return 'blocked';
+      }
+      if (stored.value === CONSENT_VERSION) return 'allowed';
+      const allowed = await confirmDialog(el, {
+        title: 'Allow access to your ChatGPT history?',
+        body:
+          'Chat Cleanup reads conversation titles, dates, pinned/Project status, your ChatGPT ' +
+          'account ID and session authentication to show and process your history. It stores ' +
+          'protected conversation IDs and unfinished batch titles/IDs in this Chrome profile.\n\n' +
+          'Data is sent only to ChatGPT, never to the developer. After you approve a batch, ' +
+          'verification may download conversation details containing messages; message content ' +
+          'is not stored or analyzed.',
+        ok: 'Allow and continue',
+        cancel: 'Close',
+        danger: false,
+      }, (cancel) => { cancelReview = cancel; });
+      cancelReview = null;
+      if (!allowed || !el.isConnected) return 'declined';
+      if (!(await writeKey(CONSENT_KEY, CONSENT_VERSION))) {
+        warnStorageLost();
+        return 'blocked';
+      }
+      return 'allowed';
+    }
+
+    async function reviewConfirmation(o: {
+      title: string;
+      body: string;
+      ok: string;
+      danger: boolean;
+      cancel?: string;
+      items: string[];
+    }): Promise<boolean> {
+      if (reviewing || batchInFlight || !el.isConnected) return false;
+      reviewing = true;
+      summary.inert = true;
+      list.inert = true;
+      archiveBtn.disabled = true;
+      deleteBtn.disabled = true;
+      const answer = await confirmDialog(el, o, (cancel) => { cancelReview = cancel; });
+      cancelReview = null;
+      reviewing = false;
+      list.inert = false;
+      if (el.isConnected && !reportOpen) render();
+      return answer && el.isConnected;
+    }
+
+    async function offerResume(b: {
+      kind: OpKind;
+      startedAt: number;
+      accountId: string;
+      ops: Operation[];
+    }) {
       const left = b.ops.filter((o) => o.state !== 'done' && o.state !== 'failed').length;
+      if (left === 0) {
+        await clearBatch();
+        return;
+      }
+      if (!inventory || b.accountId !== inventory.accountId) {
+        showRejectedBatch('the saved batch belongs to a different ChatGPT account or workspace');
+        return;
+      }
       const settled = b.ops.length - left;
       const verb = b.kind === 'archive' ? 'archiving' : 'deleting';
       const when = b.startedAt ? ` from ${new Date(b.startedAt).toLocaleString()}` : '';
-      const resume = await confirmDialog(el, {
+      const pending = b.ops.filter((o) => o.state !== 'done' && o.state !== 'failed');
+      const resume = await reviewConfirmation({
         title: `Resume ${verb} ${plural(left, 'conversation')}?`,
         body:
           `An unfinished batch${when} was interrupted. ` +
-          `${settled} of ${b.ops.length} already finished and will not be repeated.`,
+          `${settled} of ${b.ops.length} already finished and will not be repeated.\n\n` +
+          verificationDisclosure,
         ok: `Resume ${left}`,
-        cancel: 'Discard',
+        cancel: 'Not now',
         danger: b.kind === 'remove',
+        items: pending.map((op) => op.title || op.id),
       });
       if (!resume) {
-        void clearBatch();
+        // Closing the panel or pressing Escape must never discard recovery state. Offer a
+        // separate, explicit action after the user has declined to resume.
+        if (el.isConnected) {
+          warn.hidden = false;
+          warn.replaceChildren(document.createTextNode(
+            'The unfinished batch was kept. Reopen the panel to resume it, or discard only its saved recovery record. ',
+          ));
+          const discard = document.createElement('button');
+          discard.textContent = 'Discard saved batch';
+          discard.style.cssText =
+            'background:none;border:none;color:#ffb782;text-decoration:underline;cursor:pointer;padding:0;font:inherit';
+          discard.onclick = async () => {
+            if (await clearBatch()) {
+              warn.hidden = true;
+              warn.textContent = '';
+            } else {
+              discard.disabled = true;
+              discard.textContent = 'Could not discard — reload the page and try again';
+            }
+          };
+          warn.append(discard);
+        }
         return;
       }
       await runQueue(
-        OperationQueue.restore(b.kind, b.ops, queueDeps(b.kind, b.startedAt)),
+        OperationQueue.restore(b.kind, b.ops, queueDeps(b.kind, b.startedAt, b.accountId)),
         b.kind,
         b.startedAt,
+        b.accountId,
       );
     }
 
@@ -387,52 +636,106 @@ export function createUi(): HTMLElement {
       return summary ? `${body}\n\nIncludes protected conversations: ${summary}.` : body;
     };
 
-    archiveBtn.onclick = () => {
+    async function protectionsStillMatchReview(
+      picked: { id: string }[],
+      manualAtReview: ReadonlySet<string>,
+    ): Promise<boolean> {
+      let latest: Set<string>;
+      try {
+        latest = await loadProtected();
+      } catch {
+        warnStorageLost();
+        return false;
+      }
+      const newlyProtected = picked.filter((item) =>
+        latest.has(item.id) && !manualAtReview.has(item.id));
+      manual = latest;
+      if (!newlyProtected.length) return true;
+      for (const item of newlyProtected) selected.delete(item.id);
+      activeRuleKey = null;
+      warn.hidden = false;
+      warn.textContent =
+        `${plural(newlyProtected.length, 'conversation')} became protected while you were ` +
+        'reviewing. They were removed from the selection; review the list again.';
+      refresh();
+      return false;
+    }
+
+    archiveBtn.onclick = async () => {
+      if (!canSelect() || !inventory) return;
       const picked = chosen();
-      confirmDialog(el, {
+      if (!picked.length) return;
+      const manualAtReview = new Set(manual);
+      const yes = await reviewConfirmation({
         title: `Archive ${plural(picked.length, 'conversation')}?`,
         body: withOverride(
-          'Archived chats stay in your account and can be restored from ChatGPT settings.',
+          'Archived chats stay in your account and can be restored from ChatGPT settings.\n\n' +
+            verificationDisclosure,
           picked,
         ),
         ok: `Archive ${picked.length}`,
         danger: false,
-      }).then((yes) => {
-        if (yes) void runBatch(picked, 'archive');
+        items: picked.map((item) => item.title || item.id),
       });
+      if (yes && await protectionsStillMatchReview(picked, manualAtReview)) {
+        await runBatch(picked, 'archive');
+      }
     };
 
-    deleteBtn.onclick = () => {
+    deleteBtn.onclick = async () => {
+      if (!canSelect() || !inventory) return;
       const picked = chosen();
-      confirmDialog(el, {
+      if (!picked.length) return;
+      const manualAtReview = new Set(manual);
+      const yes = await reviewConfirmation({
         title: `Delete ${plural(picked.length, 'conversation')} permanently?`,
-        body: withOverride('Deleted chats cannot be recovered.', picked),
+        body: withOverride(
+          `Deleted chats cannot be recovered.\n\n${verificationDisclosure}`,
+          picked,
+        ),
         ok: `Delete ${picked.length}`,
         danger: true,
-      }).then((yes) => {
-        if (yes) void runBatch(picked, 'remove');
+        items: picked.map((item) => item.title || item.id),
       });
+      if (yes && await protectionsStillMatchReview(picked, manualAtReview)) {
+        await runBatch(picked, 'remove');
+      }
     };
 
     const restoreList = () => {
       reportOpen = false;
+      queueView = null;
       (el.querySelector('.cc-ft') as HTMLElement).innerHTML =
-        '<button disabled>Archive</button><button disabled>Delete…</button>';
+        '<button class="cc-primary" disabled>Archive</button><button disabled>Delete…</button>';
       const [a, d] = [...el.querySelectorAll('.cc-ft button')] as HTMLButtonElement[];
       a.onclick = archiveBtn.onclick;
       d.onclick = deleteBtn.onclick;
       archiveBtn = a;
       deleteBtn = d;
       render();
+      if (!allBtn.disabled) allBtn.focus();
+      else (el.querySelector('.cc-x') as HTMLButtonElement).focus();
     };
 
     async function runBatch(picked: { id: string; title: string }[], kind: OpKind) {
+      if (!inventory) return;
       const startedAt = Date.now();
-      await runQueue(new OperationQueue(picked, kind, queueDeps(kind, startedAt)), kind, startedAt);
+      const accountId = inventory.accountId;
+      await runQueue(
+        new OperationQueue(picked, kind, queueDeps(kind, startedAt, accountId)),
+        kind,
+        startedAt,
+        accountId,
+      );
     }
 
     /** Shared by a fresh batch and a resumed one, so both persist and report identically. */
-    async function runQueue(queue: OperationQueue, kind: OpKind, startedAt: number) {
+    async function runQueue(
+      queue: OperationQueue,
+      kind: OpKind,
+      startedAt: number,
+      accountId: string,
+    ) {
       // One writer at a time across every tab. Two panels running the same restored batch would
       // overwrite each other's progress and could send the same delete twice.
       if (batchInFlight) {
@@ -442,58 +745,78 @@ export function createUi(): HTMLElement {
           'nothing was started twice.';
         return;
       }
-      if (!(await acquireLease(ownerId))) {
+      try {
+        await assertAccountContext(accountId);
+      } catch {
+        warn.hidden = false;
+        warn.textContent =
+          'The ChatGPT account or workspace changed after review. Reload and review the list ' +
+          'again. Nothing was changed.';
+        return;
+      }
+      let leaseBusy = false;
+      const locked = await withExclusiveBatchLock(async () => {
+        if (!(await acquireLease(ownerId))) {
+          leaseBusy = true;
+          return;
+        }
+        batchInFlight = true;
+        const heartbeat = setInterval(() => {
+          void renewLease(ownerId).then((held) => {
+            if (!held) queue.stop(); // someone took over; stop rather than double-write
+          });
+        }, HEARTBEAT_MS);
+
+        reportOpen = true;
+        setNote('');
+        anchor = null;
+        const view = progressView(el, kind, queue.ops.length, restoreList);
+        queueView = view;
+        queue.ops.forEach((o) => selected.delete(o.id));
+        paintSummary();
+        view.onStop(() => queue.stop());
+        try {
+          await queue.run();
+          // Finalize storage while this queue still owns both locks, after every worker/save.
+          if (queue.pending === 0) await clearBatch();
+          else if (!(await saveBatch({ kind, startedAt, accountId, ops: queue.ops }))) {
+            warnStorageLost();
+          }
+        } catch (err) {
+          warn.hidden = false;
+          warn.textContent = `Cleanup stopped after an unexpected error: ${String(err)}`;
+          await saveBatch({ kind, startedAt, accountId, ops: queue.ops });
+        } finally {
+          clearInterval(heartbeat);
+          await releaseLease(ownerId);
+          batchInFlight = false;
+        }
+        // Leave the report standing until the user dismisses it with "Back to list".
+        view.finish(queue.done, queue.failed, queue.haltedBy);
+        refreshSummary();
+      });
+      if (!locked.acquired || leaseBusy) {
         warn.hidden = false;
         warn.textContent =
           'Another ChatGPT tab is already running a cleanup. Finish or stop it there, then ' +
           'reopen this panel. Nothing was changed here.';
-        return;
       }
-      batchInFlight = true;
-      const heartbeat = setInterval(() => {
-        void renewLease(ownerId).then((held) => {
-          if (!held) queue.stop(); // someone took over; stop rather than double-write
-        });
-      }, HEARTBEAT_MS);
-
-      const view = progressView(el, kind, queue.ops.length, restoreList);
-      reportOpen = true;
-      queueView = view;
-      queue.ops.forEach((o) => selected.delete(o.id));
-      view.onStop(() => queue.stop());
-      try {
-        await queue.run();
-      } finally {
-        batchInFlight = false;
-        clearInterval(heartbeat);
-        await releaseLease(ownerId);
-      }
-      // Keep the record while anything is still pending (the user stopped it); drop it once
-      // every operation has settled, so a finished batch can never be resumed by accident.
-      if (queue.pending === 0) await clearBatch();
-      else if (!(await saveBatch({ kind, startedAt, ops: queue.ops }))) warnStorageLost();
-      // Update the counts around the report, but leave the report itself standing: the user
-      // has just been told what happened and still has to dismiss it with "Back to list".
-      view.finish(queue.done, queue.failed, queue.haltedBy);
-      refreshSummary();
     }
 
     let queueView: { update: (ops: readonly Operation[]) => void } | null = null;
 
-    function queueDeps(kind: OpKind, startedAt: number) {
+    function queueDeps(kind: OpKind, startedAt: number, accountId: string): QueueDeps {
       return {
-        adapter: apiAdapter,
-        verify,
+        adapter: apiAdapterFor(accountId),
+        verify: (id) => verify(id, accountId),
+        concurrency: kind === 'remove' ? 2 : 1,
         // Awaited before each write: an intent we could not record is one we could not tell
         // from an unsent write on the next open, and the queue stops rather than risk that.
         persist: (ops: readonly Operation[]) =>
-          saveBatch({ kind, startedAt, ops: [...ops] as Operation[] }),
+          saveBatch({ kind, startedAt, accountId, ops: [...ops] }),
         onChange: (ops: readonly Operation[]) => {
           queueView?.update(ops);
-          // Written on every transition so a crash mid-batch loses at most one operation's
-          // worth of state. Failures here are non-fatal: losing the record costs a resume,
-          // not data. saveBatch never throws, so nothing here can break the queue.
-          void saveBatch({ kind, startedAt, ops: [...ops] });
+          // The queue owns ordered persistence; UI writes could overwrite newer snapshots.
         },
         // ChatGPT's sidebar does not react to our writes, so prune the row ourselves —
         // for archive too, since an archived chat no longer belongs in history.
@@ -507,15 +830,20 @@ export function createUi(): HTMLElement {
       };
     }
 
-    void Promise.all([
-      listAll((loaded) => {
-        total.textContent = `Loading ${loaded} conversations…`;
-      }),
-      loadProtected(),
-      // Settles either way: a record we refuse to trust must not brick the panel.
-      loadRestorePoint(),
-    ])
-      .then(([inv, saved, restored]) => {
+    void (async () => {
+      const consent = await ensureDataConsent();
+      if (consent === 'declined') closePanel();
+      if (consent !== 'allowed') return;
+      detachProtectionListener = onKeyChange('protectedChats', protectionChange);
+      try {
+        const [inv, saved, restored] = await Promise.all([
+          listAll((loaded) => {
+            total.textContent = `Loading ${loaded} conversations…`;
+          }),
+          loadProtected(),
+          // Settles either way: a record we refuse to trust must not brick the panel.
+          loadRestorePoint(),
+        ]);
         inventory = inv;
         manual = saved;
         ready = true;
@@ -525,17 +853,19 @@ export function createUi(): HTMLElement {
         if (!inv.complete) {
           warn.hidden = false;
           warn.textContent =
-            `Could not read the whole account` +
-            (inv.unreadProjects.length ? ` (missed: ${inv.unreadProjects.join(', ')})` : '') +
-            `. The list is incomplete — reload before acting on it.`;
+            `ChatGPT returned a partial list. ${plural(inv.total, 'verified conversation')} ` +
+            `loaded; unavailable chats were excluded and cannot be selected. ` +
+            inv.issues.join(' ') +
+            (inv.unreadProjects.length ? ` Unread: ${inv.unreadProjects.join(', ')}.` : '') +
+            ' Close and reopen Chat Cleanup to retry.';
         }
         refresh();
-      })
-      .catch((err) => {
+      } catch (err) {
         total.textContent = '';
         warn.hidden = false;
         warn.textContent = `Could not load conversations: ${err}. Are you signed in?`;
-      });
+      }
+    })();
   }
 
   return host;
@@ -696,11 +1026,24 @@ function groupHeader(
  */
 function confirmDialog(
   host: HTMLElement,
-  o: { title: string; body: string; ok: string; danger: boolean; cancel?: string },
+  o: {
+    title: string;
+    body: string;
+    ok: string;
+    danger: boolean;
+    cancel?: string;
+    items?: string[];
+  },
+  onCancelReady?: (cancel: () => void) => void,
 ): Promise<boolean> {
   return new Promise((resolve) => {
+    const previousFocus = host.getRootNode() instanceof ShadowRoot
+      ? (host.getRootNode() as ShadowRoot).activeElement as HTMLElement | null
+      : null;
     const dlg = document.createElement('div');
     dlg.className = 'cc-dlg';
+    dlg.setAttribute('role', 'dialog');
+    dlg.setAttribute('aria-modal', 'true');
     dlg.innerHTML = `<div>
       <h3></h3><p></p>
       <div class="cc-dlg-btns">
@@ -711,13 +1054,51 @@ function confirmDialog(
     (dlg.querySelector('p') as HTMLElement).textContent = o.body;
     (dlg.querySelector('.cc-ok') as HTMLElement).textContent = o.ok;
     (dlg.querySelector('.cc-cancel') as HTMLElement).textContent = o.cancel ?? 'Cancel';
+    if (o.items?.length) {
+      const items = document.createElement('ol');
+      items.className = 'cc-dlg-items';
+      items.setAttribute('aria-label', 'Conversations in this batch');
+      for (const value of o.items) {
+        const item = document.createElement('li');
+        item.textContent = value;
+        items.append(item);
+      }
+      dlg.querySelector('p')!.after(items);
+    }
+    let closed = false;
     const close = (v: boolean) => {
+      if (closed) return;
+      closed = true;
       dlg.remove();
+      if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
       resolve(v);
     };
+    onCancelReady?.(() => close(false));
     (dlg.querySelector('.cc-cancel') as HTMLElement).onclick = () => close(false);
     (dlg.querySelector('.cc-ok') as HTMLElement).onclick = () => close(true);
+    dlg.onkeydown = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        close(false);
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const controls = [...dlg.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
+      if (!controls.length) return;
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && dlg.getRootNode() instanceof ShadowRoot &&
+        (dlg.getRootNode() as ShadowRoot).activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && dlg.getRootNode() instanceof ShadowRoot &&
+        (dlg.getRootNode() as ShadowRoot).activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
     host.appendChild(dlg);
+    (dlg.querySelector('.cc-cancel') as HTMLButtonElement).focus({ preventScroll: true });
   });
 }
 
@@ -727,7 +1108,7 @@ function progressView(host: HTMLElement, kind: OpKind, total: number, onBack: ()
   const foot = host.querySelector('.cc-ft') as HTMLElement;
   const el = document.createElement('div');
   el.className = 'cc-prog';
-  el.innerHTML = `<div class="cc-stat"></div><div class="cc-bar"><i style="width:0"></i></div>
+  el.innerHTML = `<h3 class="cc-stat" role="status" aria-live="polite" aria-atomic="true"></h3><div class="cc-bar"><i style="width:0"></i></div>
     <div class="cc-fail"></div>`;
   body.replaceChildren(el);
   foot.innerHTML = '<button class="cc-stop">Stop</button>';
@@ -736,6 +1117,7 @@ function progressView(host: HTMLElement, kind: OpKind, total: number, onBack: ()
   const bar = el.querySelector('.cc-bar > i') as HTMLElement;
   const fails = el.querySelector('.cc-fail') as HTMLElement;
   const verb = kind === 'archive' ? 'Archiving' : 'Deleting';
+  let stopping = false;
 
   return {
     update(ops: readonly Operation[]) {
@@ -743,25 +1125,48 @@ function progressView(host: HTMLElement, kind: OpKind, total: number, onBack: ()
       const failed = ops.filter((o) => o.state === 'failed').length;
       const retrying = ops.filter((o) => o.state === 'retry_wait').length;
       stat.textContent =
-        `${verb} ${done + failed}/${total}` +
+        `${stopping ? 'Stopping' : verb} ${done + failed}/${total}` +
         (failed ? ` · ${failed} failed` : '') +
         (retrying ? ' · retrying…' : '');
       bar.style.width = `${Math.round(((done + failed) / total) * 100)}%`;
     },
     onStop(fn: () => void) {
       (foot.querySelector('.cc-stop') as HTMLElement).onclick = () => {
+        stopping = true;
         fn();
-        stat.textContent = 'Stopping after the current conversation…';
+        stat.textContent = 'Stopping after the conversations already in progress…';
+        (foot.querySelector('.cc-stop') as HTMLButtonElement).disabled = true;
       };
     },
     finish(
       done: number,
       failed: Operation[],
-      haltedBy?: 'rate-limit' | 'signed-out' | 'no-durable-state' | null,
+      haltedBy?: 'rate-limit' | 'signed-out' | 'account-changed' | 'no-durable-state' | null,
     ) {
-      // Failures are listed, never silently swallowed.
-      stat.textContent = `Done: ${done} ${kind === 'archive' ? 'archived' : 'deleted'}` +
-        (failed.length ? `, ${failed.length} failed` : '');
+      const left = Math.max(0, total - done - failed.length);
+      const complete = total > 0 && done === total && failed.length === 0 && !haltedBy;
+      const pastVerb = kind === 'archive' ? 'archived' : 'deleted';
+      const result = document.createElement('div');
+      result.className = `cc-result ${complete ? 'cc-success' : 'cc-attention'}`;
+      result.innerHTML = `<div class="cc-result-icon" aria-hidden="true">
+        <svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="27"/>
+          ${complete ? '<path class="cc-check" d="m20 32 8 8 16-17"/>' : '<path d="M32 20v15m0 9h.01"/>'}
+        </svg></div><p class="cc-result-kicker"></p>`;
+      (result.querySelector('.cc-result-kicker') as HTMLElement).textContent =
+        complete ? 'Cleanup complete' : left || haltedBy ? 'Cleanup paused' : 'Cleanup needs attention';
+      stat.textContent = `${plural(done, 'chat')} ${pastVerb}`;
+      result.append(stat);
+      const copy = document.createElement('p');
+      copy.className = 'cc-result-copy';
+      copy.textContent = complete
+        ? kind === 'archive'
+          ? 'You can restore these chats from ChatGPT settings.'
+          : 'The selected chats have been permanently deleted.'
+        : `${done} of ${total} chats ${pastVerb}.` +
+          (failed.length ? ` ${failed.length} failed.` : '') +
+          (left ? ` ${left} not processed.` : '');
+      result.append(copy);
+      el.replaceChildren(result, fails);
       if (haltedBy) {
         // Nothing was lost: the remaining conversations are saved and resumable.
         const halt = document.createElement('div');
@@ -773,8 +1178,11 @@ function progressView(host: HTMLElement, kind: OpKind, total: number, onBack: ()
             : haltedBy === 'signed-out'
               ? 'Your ChatGPT session ended, so the batch stopped. Reload the page, sign in, ' +
                 'then reopen this panel and resume.'
+              : haltedBy === 'account-changed'
+                ? 'The ChatGPT account or workspace changed, so the batch stopped. Reload the ' +
+                  'page and review the saved batch in the original account.'
               : 'Progress could not be saved, so the batch stopped before doing more work. ' +
-                'Reload the page and start again — nothing is left half-finished.';
+                'Reload the page and review the saved batch before resuming.';
         el.append(halt);
       }
       fails.replaceChildren(
@@ -784,8 +1192,12 @@ function progressView(host: HTMLElement, kind: OpKind, total: number, onBack: ()
           return d;
         }),
       );
+      fails.hidden = failed.length === 0;
       foot.innerHTML = '<button class="cc-back">Back to list</button>';
-      (foot.querySelector('.cc-back') as HTMLElement).onclick = onBack;
+      const back = foot.querySelector('.cc-back') as HTMLButtonElement;
+      back.onclick = onBack;
+      // Stop disappears at completion; keep keyboard navigation inside this panel.
+      if (host.isConnected) back.focus({ preventScroll: true });
     },
   };
 }

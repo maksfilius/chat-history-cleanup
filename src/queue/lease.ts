@@ -13,6 +13,7 @@ import { readKey, removeKey, writeKey } from '../storage/local.ts';
  * A stale lease expires, so a crashed tab cannot block cleanup forever.
  */
 const KEY = 'batchLease';
+const WEB_LOCK = 'chat-cleanup-destructive-batch-v1';
 
 /** Long enough to outlive a slow request (~1.2 s each), short enough not to strand the user. */
 export const LEASE_TTL_MS = 30_000;
@@ -62,4 +63,27 @@ export async function renewLease(owner: string, now = Date.now()): Promise<boole
 export async function releaseLease(owner: string): Promise<void> {
   const lease = await readKey<unknown>(KEY);
   if (isLease(lease) && lease.owner === owner) await removeKey(KEY);
+}
+
+/**
+ * Hold a browser-enforced exclusive lock for the whole destructive run.
+ *
+ * The storage lease is durable and visible after a crash, but chrome.storage has no atomic
+ * compare-and-swap: two tabs can both briefly believe they acquired it. Web Locks closes that
+ * race across ChatGPT tabs and across old/new extension content-script contexts. A page script
+ * can at worst hold the named lock and deny service; it cannot enter this callback or authorize
+ * work. Chrome 120 (the declared minimum) supports this API.
+ */
+export async function withExclusiveBatchLock<T>(task: () => Promise<T>): Promise<{
+  acquired: boolean;
+  value?: T;
+}> {
+  if (typeof navigator === 'undefined' || !navigator.locks) {
+    return { acquired: false };
+  }
+  return navigator.locks.request(
+    WEB_LOCK,
+    { mode: 'exclusive', ifAvailable: true },
+    async (lock) => lock ? { acquired: true, value: await task() } : { acquired: false },
+  );
 }

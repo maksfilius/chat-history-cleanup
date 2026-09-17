@@ -19,11 +19,20 @@ export function extensionAlive(): boolean {
 }
 
 export async function readKey<T>(key: string): Promise<T | undefined> {
-  if (!extensionAlive()) return undefined;
+  const result = await readKeyState<T>(key);
+  return result.value;
+}
+
+/** Distinguishes a missing key from an unavailable storage backend. */
+export async function readKeyState<T>(key: string): Promise<{
+  ok: boolean;
+  value?: T;
+}> {
+  if (!extensionAlive()) return { ok: false };
   try {
-    return (await chrome.storage.local.get(key))[key] as T | undefined;
+    return { ok: true, value: (await chrome.storage.local.get(key))[key] as T | undefined };
   } catch {
-    return undefined;
+    return { ok: false };
   }
 }
 
@@ -44,5 +53,21 @@ export async function removeKey(key: string): Promise<boolean> {
     return true;
   } catch {
     return false;
+  }
+}
+
+/** Observe one local key across extension contexts. Returns a safe unsubscribe function. */
+export function onKeyChange<T>(key: string, listener: (value: T | undefined) => void): () => void {
+  if (!extensionAlive()) return () => {};
+  const handler = (changes: Record<string, chrome.storage.StorageChange>, areaName: string) => {
+    if (areaName === 'local' && key in changes) listener(changes[key].newValue as T | undefined);
+  };
+  try {
+    chrome.storage.onChanged.addListener(handler);
+    return () => {
+      try { chrome.storage.onChanged.removeListener(handler); } catch { /* orphaned context */ }
+    };
+  } catch {
+    return () => {};
   }
 }

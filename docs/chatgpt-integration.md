@@ -1,5 +1,31 @@
 # ChatGPT Integration Notes
 
+## 2026-09-08 — deletion throughput investigation
+
+The user reports more than 90 seconds for 22 deletions (over 4 seconds per chat).
+Code inspection shows no delay on the successful path: every chat waits for a PATCH and
+then a detail GET before the next chat starts. With the token already cached, that is
+44 sequential requests. Network/server latency is a plausible explanation, not a live
+measurement of this batch; retries could also contribute.
+
+Use at most two in-flight conversations for deletion; archive stays sequential. Each
+conversation still requires its own confirmed detail result. Serialize and await queue
+snapshots so concurrent operations cannot overwrite newer recovery state. Stop prevents
+further dispatch after pending storage writes, and waits for already-sent work to settle.
+In the two-conversation mode, the first 429 stops new work across the whole batch, avoiding
+two independent rate-limit retry loops. Resume reconciles already-dispatched work by reading.
+
+This changes scheduling only: endpoints, authentication and verification evidence stay the
+same. The existing sequential mode remains available in the queue. Two-way throughput and
+the live rate-limit threshold are unmeasured; synthetic timing can establish overlap, not
+promise a real-account speedup. No live account is used for these changes.
+
+Synthetic benchmark: 22 chats, a 25 ms delay per PATCH and GET, 22 writes + 22 checks in
+both modes. Sequential: 1,144 ms; two slots: 571 ms (2.00×). Chrome 152 with synthetic
+fetch/storage and blocked networking confirms two distinct in-flight IDs, Stop, persistence,
+reopen ownership and Resume without repeating completed targets. Live throughput remains
+to be measured by the user.
+
 ## 2026-09-05 audit correction — current build is release-blocked
 
 The historical observations below are not current contract guarantees. The actual panel uses
@@ -74,15 +100,18 @@ Both are consumed only through `ConversationAdapter` (`src/types/conversation.ts
 ### B. Internal endpoint route — the real source of truth
 
 ```text
-GET   /api/auth/session                                      -> { accessToken }
+GET   /api/auth/session                                      -> { accessToken, account: { id } }
 GET   /backend-api/conversations?offset&limit&order=updated  -> { items, total, limit, offset }
 GET   /backend-api/conversation/<id>                         -> detail (includes full mapping)
 PATCH /backend-api/conversation/<id>                         -> { is_archived } | { is_visible }
 ```
 
 Auth: a same-origin `credentials: 'include'` fetch to `/api/auth/session` returns the session
-`accessToken`. Read per call, held in a local variable, never stored, logged or transmitted.
-No host permissions and no background service worker needed. `VERIFIED`
+`accessToken` and active account/workspace ID. Both are cached in page memory, never logged, and
+the token is never persisted. Every private call sends the bearer token and
+`ChatGPT-Account-ID`; a reviewed/persisted batch is bound to that account ID. No background service
+worker is needed. The account response shape is covered synthetically and still needs a current
+live-account recheck.
 
 **Two traps, both confirmed live — this is the most important finding in this document:**
 
@@ -93,7 +122,8 @@ No host permissions and no background service worker needed. `VERIFIED`
    from "conversation gone" unless you know to look.
 
 Both are avoided by one rule, enforced in `api.ts`: **every `/backend-api` call sends the
-Authorization header.** `VERIFIED`
+Authorization and account headers.** Requests reject redirects, time out after 20 seconds, and
+carry no referrer.
 
 Paging: `offset`/`limit` with a reported `total`; offset 0 and offset 3 at limit 3 returned
 disjoint pages (overlap 0). `VERIFIED`. The maximum accepted `limit` is `UNKNOWN` (the account
@@ -122,7 +152,7 @@ snippet, summary_metadata, sugar_item_id, sugar_item_visible
 | `archived` | RELIABLE `VERIFIED` | `is_archived`; `?is_archived=true` is a working separate listing |
 | `projectId` | RELIABLE `VERIFIED` | `gizmo_id` prefixed `g-p-` = project. A plain `g-` gizmo is a custom GPT, **not** a project — do not protect on `gizmo_id != null` alone |
 | `isTemporary` | `PARTIAL` | `is_temporary_chat` present and `false` on all 8; positive case unseen |
-| `isPinned` | RELIABLE `VERIFIED` | a pinned chat carries **both** `pinned_time` (ISO) and `is_starred: true`; unpinned chats have both `null`. Since `null` also means "cannot see", the mapping yields `true` or `undefined`, **never** `false` |
+| `isPinned` | RELIABLE `VERIFIED` | a pinned chat carries **both** `pinned_time` (ISO) and `is_starred: true`; unpinned chats have the fields present with `null`. Field presence proves the server reported the state, so mapping yields `false`; missing fields yield `undefined` and fail safe |
 | `messageCount` | UNAVAILABLE for v1 `VERIFIED` | `mapping`/`snippet`/`current_node` are all `null` in the listing. The detail endpoint does return it (110 nodes on a test chat) — but that is 1 request per conversation **and it returns full message content**, which violates the metadata-only privacy posture. Do not build the short-chat filter on it. |
 
 Fail-safe rule encoded in `mapApiItem`: unknown stays `undefined`, never `false`.
@@ -259,17 +289,23 @@ original user report ("chats in the Angeheftet folder do not show at all").
 
 `listAll()` now reads the flat listing and every project, dedupes by id, and marks the
 inventory incomplete — naming the projects it could not read — if any project fetch fails.
+The Project sidebar itself is cursor-paginated; `listProjects()` follows every cursor to `null`
+and ignores valid non-project gizmos returned by the shared route.
 
 ## Risks
 
-1. **Undocumented endpoints.** `/backend-api/*` can change without notice. Mitigated by the
-   adapter boundary plus a working DOM fallback.
-2. **Silent partial reads** (see traps above) are the highest-severity failure mode for this
-   product: partial inventory + broad age rule = deleting the wrong things. Discovery should
-   additionally sanity-check `items.length` against the reported `total` before any bulk action.
-3. **Terms/policy.** The calls are the ones the user's own session already makes, on their own
-   data, user-initiated, one at a time, nothing proxied or uploaded. Worth a policy read before
-   store submission.
+1. **Undocumented endpoints.** `/backend-api/*` can change without notice. The adapter boundary
+   limits the replacement surface, but the DOM adapter is not a complete destructive fallback.
+2. **Silent partial reads** (see traps above) remain a high-severity correctness problem. The
+   adapter compares loaded IDs with the reported total and surfaces every detected gap. A gap can
+   omit candidates but cannot retarget an action: filters operate only on validated records and
+   archive/delete still use the exact stable IDs shown in review. Conflicting protection metadata
+   is excluded rather than guessed.
+3. **Terms/policy.** Current OpenAI consumer terms for both Europe and other regions prohibit
+   automatically or programmatically extracting data or Output. This implementation reads history
+   through private endpoints, so written permission or qualified review is required before public
+   distribution. Stopping on 429 avoids rate-limit circumvention but does not resolve the extraction
+   clause. See `RELEASE_READINESS.md`.
 4. **Temporary-chat detection unproven.** `is_temporary_chat` was `false` on every conversation;
    the positive case is still unseen, so that protection must fail safe. Pinned detection is
    now verified.
@@ -284,14 +320,13 @@ inventory incomplete — naming the projects it could not read — if any projec
 
 ## Recommendation for the MVP adapter strategy
 
-**Hybrid, API-first.** Verified, not assumed:
+**API-first release candidate, with a replaceable adapter boundary:**
 
 - **Discovery + metadata: API only.** The DOM cannot supply `update_time`, `is_archived` or a
   total, and it was missing a conversation outright. Every cleanup filter needs age.
 - **Actions: API,** sequential, verified through the detail endpoint, with `dom.ts` kept as a
   drop-in fallback behind the same interface.
-- **DOM: selection/highlighting UI only** — plus the knowledge that it will not self-refresh
-  after our writes.
+- **DOM: sidebar reconciliation only.** It is not a complete archive/delete fallback today.
 
 Switching cost if the API breaks: implement two methods in `dom.ts`.
 

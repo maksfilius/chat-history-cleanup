@@ -3,6 +3,12 @@ dist/
 chat-cleanup.zip
 .DS_Store
 
+# reproducible landing/branding outputs
+landing/demo.js
+landing/icons/
+landing/branding/
+assets/branding/preview.png
+
 # internal planning docs — kept local, not published
 AGENTS.md
 AGENT_TASK.md

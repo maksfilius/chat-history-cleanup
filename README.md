@@ -1,79 +1,73 @@
 # Chat Cleanup
 
-A focused Chrome extension for safely cleaning large ChatGPT conversation histories.
-
-## Product idea
-
-ChatGPT lets users delete or archive conversations individually, but managing hundreds of old chats is cumbersome. Chat Cleanup provides a safer bulk-cleanup workflow built around review, protection rules, and reliable queued operations.
-
-**Positioning:**
+A focused Chrome extension for reviewing and bulk-cleaning a large ChatGPT conversation history.
 
 > Clean hundreds of old ChatGPT chats safely in minutes.
 
-## Status
+## Release status
 
-Pre-MVP / validation stage.
+The repository contains a tested **release candidate**, not a submitted public release. Automated
+checks pass, but a real-account regression run and the remaining Chrome Web Store publisher work
+are still required. See [RELEASE_READINESS.md](RELEASE_READINESS.md).
 
-**Release blocked:** the pre-release audit found unresolved queue recovery, concurrency,
-confirmation and privacy issues. See [PRE_RELEASE_AUDIT.md](PRE_RELEASE_AUDIT.md).
+The extension uses undocumented ChatGPT web endpoints. They can change without notice, and the
+current OpenAI terms restrict automatic or programmatic extraction. The publisher decided to keep
+this integration for initial market validation and accept the documented distribution risk. Do
+not describe it as an official or public OpenAI API. See the concrete
+[code-to-policy audit](docs/openai-policy-audit.md), [competitor review](docs/competitor-implementation-review.md),
+and prepared [permission request](docs/openai-permission-request.md).
 
-The first version should remain intentionally small and local-only.
+## What v1 does
 
-## Product boundary
+- Loads the complete flat history and conversations inside Projects.
+- Selects conversations manually, by range, all at once, or with deterministic age presets:
+  30, 90, 180, or 365 days. An untitled rule is also available.
+- Protects pinned chats, Project chats, manually protected chats, and records whose protection
+  metadata is unknown from rule-based and global bulk selection.
+- Shows the exact titles in a review dialog before archive or permanent deletion.
+- Requires explicit confirmation for every batch; deletion is never automatic.
+- Archives sequentially and deletes at no more than two conversations at a time.
+- Verifies each result, respects `Retry-After`, stops on account-wide rate limits, and reports
+  every failure.
+- Persists unfinished work locally and reconciles an uncertain write by reading its outcome
+  before it can be sent again.
+- Binds a reviewed batch to the ChatGPT account/workspace that created it and allows only one
+  destructive queue across open ChatGPT tabs.
 
-**Free — better manual control.** The user decides what gets cleaned; our job is to make
-choosing and executing it fast and safe.
+## Privacy and scope
 
-**Pro (not built) — helps decide what to clean and automates repetitive cleanup.** Nothing of
-it ships today; the roadmap is tracked privately.
+There is no backend, extension account, analytics, advertising, cloud sync, or third-party data
+transfer. The extension runs only on `https://chatgpt.com/*`, sends authenticated requests only
+to ChatGPT, and stores protection/recovery state in `chrome.storage.local`.
 
-Safety is never a paid feature. Confirmation before deletion, the reliable queue, progress,
-retry/backoff, protection from accidental bulk selection and clear error states all stay Free.
-There are no artificial Free limits — no cap on how many conversations you may select or delete.
+Before reading history, the extension presents an in-product data disclosure and requires an
+affirmative choice. Result verification downloads ChatGPT's full conversation detail response,
+which can contain messages, but only checks the conversation identity and archive state. Message
+content is not analyzed, retained, or sent to the developer. See [PRIVACY.md](PRIVACY.md).
 
-## Free v1
+## Build and verify
 
-- Manual multi-select, with shift-click range selection.
-- Select all unprotected conversations.
-- Select all chats inside a Project (the Project itself is never touched).
-- Clear selection.
-- Bulk archive and bulk delete, with explicit confirmation stating the count.
-- Pinned and Project conversations are protected from bulk gestures, and can still be
-  included by hand.
-- Manual protection you set yourself, stored locally.
-- Sequential queue with progress, retry/backoff and rate-limit handling.
-- An interrupted batch is stored locally and offered for recovery. The current recovery path
-  can repeat interrupted writes and is not ready for production use.
+```bash
+npm ci
+npm run typecheck
+npm test
+npm run build
+npm run test:browser
+npm run test:landing
+npm run package
+```
 
-## Not in Free v1
+`npm run package` creates `chat-cleanup.zip` from a clean allowlisted `dist/`: `manifest.json`,
+`content.js`, and the four icon files. It prints the archive SHA-256.
 
-Date filters, suggested cleanup, short/untitled heuristics and any automatic recommendation are
-deliberately absent — they belong to Pro. No accounts, backend, payments, AI classification,
-cloud sync, or multi-AI support.
+For manual testing, load `dist/` from `chrome://extensions` and follow
+[docs/store/regression-checklist.md](docs/store/regression-checklist.md).
 
-## Start here
+## Architecture
 
-If you are working on this codebase, read in this order:
+All ChatGPT-specific assumptions live behind the adapter in `src/chatgpt/`. The injected UI does
+not contain endpoint or selector logic. Start with [docs/chatgpt-integration.md](docs/chatgpt-integration.md)
+before changing discovery, actions, or verification.
 
-1. `README.md` — this file: what Free v1 is and is not.
-2. `docs/chatgpt-integration.md` — every verified finding about how ChatGPT's own endpoints
-   behave, including the traps that will bite you (silently partial reads, a listing index that
-   lags writes, conversations hidden inside projects).
-3. `src/chatgpt/` — the adapter boundary. Every ChatGPT-specific assumption lives here and
-   nowhere else.
-
-Product planning, the Free/Pro boundary and the task log are kept outside this repository.
-
-## Suggested stack
-
-- Manifest V3
-- TypeScript
-- React
-- Vite
-- chrome.storage.local
-
-## Product validation principle
-
-The goal of v1 is not feature completeness. The goal is to answer:
-
-> Is cleanup sufficiently better than the native ChatGPT workflow that users install and keep the extension?
+The v1 scope stays narrow: no accounts, backend, payments, AI scoring, summaries, folders, prompt
+library, cloud sync, multi-provider support, or mobile app.

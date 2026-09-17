@@ -135,7 +135,9 @@ test('malformed write response and mismatched read-back identity are not success
   let response: unknown = { success: false };
   globalThis.fetch = async (url, init) => {
     requests.push({ url: String(url), init });
-    return new Response(JSON.stringify(String(url).includes('/api/auth/session') ? { accessToken: 'synthetic-token' } : response));
+    return new Response(JSON.stringify(String(url).includes('/api/auth/session')
+      ? { accessToken: 'synthetic-token', account: { id: 'synthetic-account' } }
+      : response));
   };
   forgetToken();
   try {
@@ -153,6 +155,9 @@ test('malformed write response and mismatched read-back identity are not success
       assert.equal(request.init?.redirect, 'error');
       assert.equal(request.init?.cache, 'no-store');
       assert.equal(request.init?.referrerPolicy, 'no-referrer');
+      if (!request.url.includes('/api/auth/session')) {
+        assert.equal(new Headers(request.init?.headers).get('ChatGPT-Account-ID'), 'synthetic-account');
+      }
     }
   } finally { globalThis.fetch = original; forgetToken(); }
 });
@@ -222,7 +227,7 @@ test('a valid record still resumes, and an empty store is not an error', async (
   storageWith();
   assert.deepEqual(await loadRestorePoint(), { batch: null, invalid: null });
 
-  await saveBatch({ kind: 'remove', startedAt: started, ops: [liveOp] as never });
+  await saveBatch({ kind: 'remove', startedAt: started, accountId: 'test-account', ops: [liveOp] as never });
   const r = await loadRestorePoint();
   assert.equal(r.invalid, null, 'a record we wrote ourselves must round-trip');
   assert.equal(r.batch!.ops.length, 1);

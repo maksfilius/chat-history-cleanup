@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- Chat Cleanup mark, built from primitives: two identical bubbles — a 68x40 rounded
+       rectangle (r=12) plus a tail wedge — offset by exactly (+34,+32), each carrying two pill
+       text bars, plus two four-point sparkles. Each bubble is drawn as an off-white keyline
+       first, then as itself, so the keyline lands only outside the union of body and tail.
+       The keyline holds the charcoal bubble against dark backgrounds and is invisible on light.
+       #F4F3ED warm off-white, #202522 charcoal, #C9F27B lime. -->
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <!-- back bubble: charcoal, off-white bars -->
+    <g fill="none" stroke="#F4F3ED" stroke-width="7">
+      <path d="M18 24H62a12 12 0 0 1 12 12v16a12 12 0 0 1-12 12H18a12 12 0 0 1-12-12V36a12 12 0 0 1 12-12Z"/>
+      <path d="M18 59 42 62 13 76Z"/>
+    </g>
+    <g fill="#202522">
+      <path d="M18 24H62a12 12 0 0 1 12 12v16a12 12 0 0 1-12 12H18a12 12 0 0 1-12-12V36a12 12 0 0 1 12-12Z"/>
+      <path d="M18 59 42 62 13 76Z"/>
+    </g>
+    <g fill="#F4F3ED">
+      <path d="M24 37H62a3 3 0 0 1 0 6H24a3 3 0 0 1 0-6Z"/>
+      <path d="M24 49H42a3 3 0 0 1 0 6H24a3 3 0 0 1 0-6Z"/>
+    </g>
+    <!-- front bubble: off-white face, charcoal outline, charcoal bars -->
+    <g fill="none" stroke="#F4F3ED" stroke-width="15">
+      <path d="M52 56H96a12 12 0 0 1 12 12v16a12 12 0 0 1-12 12H52a12 12 0 0 1-12-12V68a12 12 0 0 1 12-12Z"/>
+      <path d="M52 91 76 94 47 108Z"/>
+    </g>
+    <g fill="#F4F3ED" stroke="#202522" stroke-width="8">
+      <path d="M52 56H96a12 12 0 0 1 12 12v16a12 12 0 0 1-12 12H52a12 12 0 0 1-12-12V68a12 12 0 0 1 12-12Z"/>
+      <path d="M52 91 76 94 47 108Z"/>
+    </g>
+    <g fill="#F4F3ED">
+      <path d="M52 56H96a12 12 0 0 1 12 12v16a12 12 0 0 1-12 12H52a12 12 0 0 1-12-12V68a12 12 0 0 1 12-12Z"/>
+      <path d="M52 91 76 94 47 108Z"/>
+    </g>
+    <g fill="#202522">
+      <path d="M58 67H96a3 3 0 0 1 0 6H58a3 3 0 0 1 0-6Z"/>
+      <path d="M58 77H76a3 3 0 0 1 0 6H58a3 3 0 0 1 0-6Z"/>
+    </g>
+  </g>
+  <g fill="#C9F27B">
+    <path d="M98 3q4.18 14.82 19 19-14.82 4.18-19 19-4.18-14.82-19-19 14.82-4.18 19-19Z"/>
+    <path d="M114 37q1.98 7.02 9 9-7.02 1.98-9 9-1.98-7.02-9-9 7.02-1.98 9-9Z"/>
+  </g>
+</svg>

@@ -1,19 +1,24 @@
 {
   "name": "chat-cleanup",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "build": "node build.mjs",
+    "build": "npm run build:extension && npm run build:landing",
+    "build:extension": "node build.mjs",
+    "build:landing": "node landing/build.mjs",
+    "build:branding": "node scripts/export-branding.mjs",
+    "build:store-assets": "node scripts/export-store-assets.mjs",
     "typecheck": "tsc --noEmit",
     "test": "node --test test/*.test.ts",
-    "package": "npm run build && cd dist && zip -qr ../chat-cleanup.zip . && cd .. && echo \"chat-cleanup.zip ready\"",
-    "test:browser": "node test/browser-safety.mjs"
+    "package": "npm run build:extension && node scripts/package-extension.mjs",
+    "test:browser": "node test/browser-safety.mjs",
+    "test:landing": "node test/landing-browser.mjs"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.278",
     "@types/node": "^26.4.1",
-    "esbuild": "^0.24.0",
+    "esbuild": "^0.28.2",
     "typescript": "^5.6.3"
   }
 }

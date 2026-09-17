@@ -23,6 +23,8 @@ export interface Operation {
 export interface QueueDeps {
   adapter: ConversationAdapter;
   verify: (id: string) => Promise<VerifyResult>;
+  /** Includes both the write and its read-back. Never allow an unbounded request burst. */
+  concurrency?: 1 | 2;
   /**
    * Must durably record the current operations before the queue sends a destructive write.
    * Returning false stops the batch: work whose intent cannot be recorded cannot be recovered,
@@ -64,15 +66,15 @@ export const backoffMs = (attempt: number, rand = Math.random) =>
   Math.round(BASE_BACKOFF_MS * 2 ** (attempt - 1) * (0.75 + rand() * 0.5));
 
 /**
- * Sequential (concurrency 1) queue for destructive work.
+ * Bounded queue for destructive work (sequential unless explicitly set to two).
  *
  * Two rules it exists to enforce:
  *  - every action is confirmed against the detail endpoint, never against the listing, which
  *    lags writes badly (see docs/chatgpt-integration.md);
  *  - a confirmed already-deleted result satisfies a delete, but never an archive.
  *
- * RELEASE BLOCKER: write/verify retry and reload recovery can still resend completed writes.
- * The bounded audit fixes validate identities, not durable exactly-once execution (audit F04).
+ * Dispatch intents and settled results are saved in order. Recovery reads ambiguous outcomes
+ * before considering another write.
  */
 export class OperationQueue {
   private operations: Operation[];
@@ -82,14 +84,18 @@ export class OperationQueue {
   }
   readonly kind: OpKind;
   /** Set when the batch halted itself rather than being stopped by the user. */
-  haltedBy: 'rate-limit' | 'signed-out' | 'no-durable-state' | null = null;
+  haltedBy: 'rate-limit' | 'signed-out' | 'account-changed' | 'no-durable-state' | null = null;
   private deps: QueueDeps;
   private stopped = false;
   private running = false;
+  private readonly concurrency: 1 | 2;
+  private saving: Promise<boolean> = Promise.resolve(true);
 
   constructor(items: { id: string; title: string }[], kind: OpKind, deps: QueueDeps) {
     this.kind = kind;
     this.deps = deps;
+    this.concurrency = deps.concurrency ?? 1;
+    if (this.concurrency !== 1 && this.concurrency !== 2) throw new Error('Invalid queue concurrency');
     this.operations = items.map((i) => ({ id: i.id, title: i.title, kind, state: 'queued', attempts: 0 }));
     if (!validOperations(this.operations, kind)) throw new Error('Invalid or duplicate queue targets');
   }
@@ -118,7 +124,7 @@ export class OperationQueue {
     return this.ops.filter((o) => o.state === 'failed');
   }
 
-  /** Finishes the in-flight operation, then stops. Never leaves an op half-applied. */
+  /** Finishes already-sent operations, then stops. Unsent work stays resumable. */
   stop() {
     this.stopped = true;
   }
@@ -131,23 +137,43 @@ export class OperationQueue {
    * the batch failing every remaining item. Instead we stop, keep everything resumable, and
    * let the user come back in a few minutes.
    */
-  private halt(op: Operation, reason: 'rate-limit' | 'signed-out' | 'no-durable-state') {
-    op.state = 'queued';
-    op.attempts = 0;
-    this.haltedBy = reason;
-    this.stopped = true;
+  private halt(op: Operation, reason: NonNullable<OperationQueue['haltedBy']>, dispatched = false) {
+    op.state = dispatched ? 'dispatched' : 'queued';
+    if (!dispatched) op.attempts = 0;
+    this.pause(reason);
     this.emit();
+  }
+
+  private pause(reason: NonNullable<OperationQueue['haltedBy']>) {
+    this.haltedBy ??= reason;
+    this.stopped = true;
   }
 
   async run(): Promise<void> {
     if (this.running) return;
     this.running = true;
     try {
-      for (const op of this.operations) {
-        if (this.stopped) return;
-        if (op.state === 'done' || op.state === 'failed') continue; // resume-safe
-        await this.runOne(op);
-      }
+      // Claim each item synchronously before awaiting: no two workers can pick the same ID.
+      const pending = this.operations.filter((op) => op.state !== 'done' && op.state !== 'failed');
+      let next = 0;
+      const worker = async () => {
+        try {
+          while (!this.stopped && next < pending.length) {
+            const op = pending[next++];
+            await this.runOne(op);
+            if (!(await this.persist())) this.pause('no-durable-state');
+          }
+        } catch (err) {
+          this.stopped = true;
+          throw err;
+        }
+      };
+      // Even an unexpected error must not release ownership while another worker is active.
+      const results = await Promise.allSettled(
+        Array.from({ length: Math.min(this.concurrency, pending.length) }, worker),
+      );
+      const failed = results.find((result) => result.status === 'rejected');
+      if (failed?.status === 'rejected') throw failed.reason;
     } finally {
       this.running = false;
     }
@@ -155,6 +181,14 @@ export class OperationQueue {
 
   private emit() {
     this.deps.onChange?.(this.ops);
+  }
+
+  private persist(): Promise<boolean> {
+    if (!this.deps.persist) return Promise.resolve(true);
+    const snapshot = this.snapshot();
+    // Snapshot order must equal storage order, even when two requests complete together.
+    this.saving = this.saving.then(() => this.deps.persist!(snapshot)).catch(() => false);
+    return this.saving;
   }
 
   private async runOne(op: Operation): Promise<void> {
@@ -172,8 +206,15 @@ export class OperationQueue {
       // an unrecorded destructive write is one we could not tell from an unsent one later.
       op.state = 'dispatched';
       this.emit();
-      if (this.deps.persist && !(await this.deps.persist(this.snapshot()))) {
+      if (!(await this.persist())) {
         return this.halt(op, 'no-durable-state');
+      }
+      // Stop or another worker's account error may arrive while storage is pending.
+      if (this.stopped) {
+        op.state = 'queued';
+        op.attempts--;
+        this.emit();
+        return;
       }
 
       try {
@@ -187,10 +228,17 @@ export class OperationQueue {
             : this.settle(op, 'failed', 'conversation was deleted; it was not archived');
         }
         // Signed out: every following operation would fail the same way.
+        if (e.code === 'account_changed' || e.code === 'account_context_missing') {
+          return this.halt(op, 'account-changed');
+        }
         if (e.status === 401 || e.status === 403) return this.halt(op, 'signed-out');
+        // Two workers must not independently retry an account-wide limit.
+        if (e.status === 429 && this.concurrency === 2) return this.halt(op, 'rate-limit');
         if (!e.transient) {
           return this.settle(op, 'failed', describe(e.status, e.code));
         }
+        // A lost response/server error may follow a successful write. Read before any retry.
+        if (e.status !== 429 && !(await this.reconcile(op))) return;
         if (op.attempts >= MAX_ATTEMPTS) {
           // Still limited after the full backoff ladder — this is not a blip.
           if (e.status === 429) return this.halt(op, 'rate-limit');
@@ -198,7 +246,7 @@ export class OperationQueue {
         }
         op.state = 'retry_wait';
         this.emit();
-        await sleep(backoffMs(op.attempts));
+        await sleep(Math.max(backoffMs(op.attempts), e.retryAfterMs ?? 0));
         continue;
       }
 
@@ -208,8 +256,12 @@ export class OperationQueue {
 
       // The read-back failed for an account-level reason, not a per-conversation one. Halting
       // keeps the operation `dispatched`, so the resume path reconciles it instead of resending.
+      if (v.state === 'error' &&
+        (v.reason === 'account_changed' || v.reason === 'account_context_missing')) {
+        return this.halt(op, 'account-changed', true);
+      }
       if (v.state === 'error' && (v.code === 429 || v.code === 401 || v.code === 403)) {
-        return this.halt(op, v.code === 429 ? 'rate-limit' : 'signed-out');
+        return this.halt(op, v.code === 429 ? 'rate-limit' : 'signed-out', true);
       }
 
       if ((v.state === 'error' && v.code >= 400 && v.code < 500) ||
@@ -226,7 +278,7 @@ export class OperationQueue {
       }
       op.state = 'retry_wait';
       this.emit();
-      await sleep(backoffMs(op.attempts));
+      await sleep(Math.max(backoffMs(op.attempts), v.state === 'error' ? v.retryAfterMs ?? 0 : 0));
     }
   }
 
@@ -251,8 +303,13 @@ export class OperationQueue {
     }
     // Proven untouched: the conversation is still there, and still not in the target state.
     if (v.state === 'present' && (op.kind === 'remove' || v.archived !== true)) return true;
+    if (v.state === 'error' &&
+      (v.reason === 'account_changed' || v.reason === 'account_context_missing')) {
+      this.halt(op, 'account-changed', true);
+      return false;
+    }
     if (v.state === 'error' && (v.code === 429 || v.code === 401 || v.code === 403)) {
-      this.halt(op, v.code === 429 ? 'rate-limit' : 'signed-out');
+      this.halt(op, v.code === 429 ? 'rate-limit' : 'signed-out', true);
       return false;
     }
     this.settle(op, 'failed', `outcome could not be established; not repeated (${unconfirmed(op.kind, v)})`);
