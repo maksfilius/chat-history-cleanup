@@ -47,10 +47,10 @@ specific ChatGPT web-session routes for this user-initiated purpose? If permissi
 different endpoint, OAuth flow, lower concurrency, removal of detail verification, partnership,
 or other conditions, please identify the supported approach.
 
-I also propose the Store title **“Chat Cleanup: Bulk Delete for ChatGPT”**, with my own logo and the
-prominent statement: “Chat Cleanup is an independent extension and is not affiliated with or
-endorsed by OpenAI.” Please confirm whether this compatibility wording is acceptable. I can use
-**“Chat Cleanup”** as the title and keep the ChatGPT reference in the description if preferred.
+The Store title is **“Chat Cleanup — Bulk Archive & Delete”**, with my own logo. ChatGPT is named
+only where needed to describe compatibility and the extension includes the prominent statement:
+“Chat Cleanup is an independent extension and is not affiliated with or endorsed by OpenAI.”
+Please confirm whether these descriptive compatibility references are acceptable.
 
 Repository or review-build URL: [URL]
 Privacy policy URL: [URL]
@@ -67,7 +67,7 @@ Thank you,
 - Use of `/api/auth/session` and the private `/backend-api/*` routes.
 - User-confirmed archive/delete writes.
 - Full-detail result verification.
-- The Store title and compatibility references.
+- Descriptive ChatGPT compatibility references in the Store listing and product documentation.
 
 A generic reply about the public OpenAI API, user ownership of content, or brand styling does not
 answer the private ChatGPT integration question.

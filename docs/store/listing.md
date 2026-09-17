@@ -1,11 +1,11 @@
 # Chrome Web Store listing copy
 
 Prepared for the release candidate. The publisher must complete the policy, live-test, privacy
-URL, contact, and graphic-asset items in `RELEASE_READINESS.md` before submission.
+URL, and contact items in `RELEASE_READINESS.md` before submission.
 
 ## Name
 
-Chat Cleanup: Bulk Delete for ChatGPT
+Chat Cleanup — Bulk Archive & Delete
 
 ## Short description (132 characters maximum)
 

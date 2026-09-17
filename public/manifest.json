@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Chat Cleanup: Bulk Delete for ChatGPT",
+  "name": "Chat Cleanup — Bulk Archive & Delete",
   "version": "0.1.0",
   "description": "Select, review, archive, or delete multiple ChatGPT chats safely. Protect important conversations and resume interrupted batches.",
   "minimum_chrome_version": "120",

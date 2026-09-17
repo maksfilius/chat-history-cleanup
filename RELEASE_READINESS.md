@@ -51,8 +51,8 @@ an official or public OpenAI API. A permission request remains prepared and reco
   ChatGPT surface.
 - `npm audit --omit=optional`: zero vulnerabilities.
 - `git diff --check`: pass.
-- Store archive: `chat-cleanup.zip`, 28,717 bytes, six allowlisted files, reproducible SHA-256
-  `795e5bb3f8d97e3cd4536e17938694c1b170f8a93af82592c411b3757d7c715e`.
+- Store archive: `chat-cleanup.zip`, 28,727 bytes, six allowlisted files, reproducible SHA-256
+  `7e07c9e3044bfe27c02435653f5501b0878d14f4929ff3814170731b8032e07e`.
 
 These tests use synthetic conversations. They do not prove that today's private ChatGPT endpoints
 still behave the same on a real account.
