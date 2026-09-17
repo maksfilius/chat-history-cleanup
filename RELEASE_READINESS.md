@@ -1,4 +1,4 @@
-# Release readiness — 2026-09-16
+# Release readiness — 2026-09-17
 
 ## Decision
 
@@ -6,7 +6,7 @@
 
 The code-level blockers from the 2026-09-05 audit have been addressed and the synthetic release
 suite passes. The remaining blockers require a real ChatGPT account, Chrome Web Store publisher
-access, public policy/contact URLs, and store graphics.
+access, and public policy/contact URLs.
 
 The publisher decided on 2026-09-16 to keep the hardened private-endpoint adapter for initial
 market validation and accept the documented OpenAI-terms risk. This is a business risk decision,
@@ -45,8 +45,10 @@ an official or public OpenAI API. A permission request remains prepared and reco
 - Chrome 153 accepts `dist/` as an unpacked Manifest V3 extension.
 - Existing desktop/mobile landing parity flow: pass with network blocked.
 - Store asset export: pass with network blocked; the 440×280 promotional tile was generated and
-  visually reviewed. Landing-demo screenshots were removed because they did not represent the
-  current ChatGPT surface.
+  visually reviewed. Three 1280×800 screenshots were captured from the production bundle on the
+  public ChatGPT surface with a fresh profile and fictional staged metadata, then visually
+  reviewed. Landing-demo screenshots were removed because they did not represent the current
+  ChatGPT surface.
 - `npm audit --omit=optional`: zero vulnerabilities.
 - `git diff --check`: pass.
 - Store archive: `chat-cleanup.zip`, 28,717 bytes, six allowlisted files, reproducible SHA-256
@@ -68,12 +70,8 @@ still behave the same on a real account.
 3. **Publisher account.** Register the Chrome Web Store developer account, pay Google's registration
    fee, enable two-step verification, and complete identity/trader-status fields required for the
    chosen regions.
-4. **Store asset sign-off.** The 440×280 promotional tile is prepared in
-   [docs/store/assets](docs/store/assets). Capture 1280×800 screenshots from the final unpacked
-   extension on real ChatGPT using a disposable account or staged conversations, crop account UI,
-   and inspect every image for personal data. See
-   [Chrome listing requirements](https://developer.chrome.com/docs/webstore/cws-dashboard-listing).
-5. **Dashboard submission.** Upload `chat-cleanup.zip`, complete Store listing, Privacy, and
+4. **Dashboard submission.** Upload `chat-cleanup.zip`, the prepared assets in
+   [docs/store/assets](docs/store/assets), complete Store listing, Privacy, and
    Distribution tabs, choose initial visibility, and submit for review. A private or unlisted item
    still undergoes the same policy review.
 
@@ -89,8 +87,8 @@ permission request remains in [docs/openai-permission-request.md](docs/openai-pe
 ## Known operational limits
 
 - All ChatGPT endpoints and response shapes are undocumented and can break without notice.
-- Project discovery fails closed at 50 projects because complete project-list pagination has not
-  been verified.
+- Project discovery follows the private endpoint's cursor until completion, with cycle and page
+  guards because the endpoint is undocumented.
 - Result verification downloads a full detail response because no reliable metadata-only endpoint
   has been identified. The user is informed before consent and before each batch.
 - Only Chrome has been tested. The manifest declares Chrome 120 as the minimum because the queue

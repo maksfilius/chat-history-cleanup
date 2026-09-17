@@ -9,6 +9,7 @@
     "build:landing": "node landing/build.mjs",
     "build:branding": "node scripts/export-branding.mjs",
     "build:store-assets": "node scripts/export-store-assets.mjs",
+    "capture:store-screenshots": "npm run build:extension && node scripts/capture-store-screenshots.mjs",
     "typecheck": "tsc --noEmit",
     "test": "node --test test/*.test.ts",
     "package": "npm run build:extension && node scripts/package-extension.mjs",

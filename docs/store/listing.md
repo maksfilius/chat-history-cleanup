@@ -88,12 +88,13 @@ substance.
 - 128×128 store icon: `public/icons/icon128.png`.
 - Prepared the 440×280 promotional tile in `docs/store/assets/`. Regenerate it with
   `npm run build:store-assets`.
-- Capture up to five 1280×800 screenshots from a disposable account:
-  1. First-run disclosure.
-  2. Age preset with protected chats skipped.
-  3. Exact archive/delete review list.
-  4. Live progress or rate-limit pause.
-  5. Completion report or reload/Resume prompt.
+- Prepared three 1280×800 screenshots from the production bundle on the real ChatGPT surface,
+  using a fresh Chrome profile and fictional staged metadata:
+  1. `01-select-old-chats-1280x800.png` — age preset with protected chats skipped.
+  2. `02-review-before-delete-1280x800.png` — exact destructive-action review list.
+  3. `03-cleanup-complete-1280x800.png` — successful archive completion report.
+- Regenerate screenshots with `npm run capture:store-screenshots`, then visually review them
+  before upload because the ChatGPT host page can change.
 - The 440×280 small promotional tile is ready. A 1400×560 marquee tile is optional.
 - Do not show real names, email addresses, private titles, message text, or account identifiers.
 
