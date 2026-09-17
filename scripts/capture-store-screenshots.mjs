@@ -303,6 +303,7 @@ try {
   };
 
   const setCaption = async (eyebrow, title, copy) => {
+    await evaluate("storeRoots.at(-1).querySelector('#chat-cleanup-store-caption')?.remove()");
     await pageEvaluate(`(() => {
       // The host-page cookie banner obscures the extension footer. Remove only that banner;
       // keeping ChatGPT's navigation visible makes the integration context unambiguous.
@@ -310,6 +311,40 @@ try {
         .filter(node => node.children.length === 0 && node.textContent.trim() === value);
       for (const marker of exactText('What can you do?')) {
         (marker.closest('button') ?? marker).style.display = 'none';
+      }
+      for (const marker of exactText('Get responses tailored to you')) marker.style.display = 'none';
+      for (const marker of [...document.querySelectorAll('body *')]
+        .filter(node => node.children.length === 0 &&
+          node.textContent.trim().startsWith('Log in to get answers based on'))) {
+        marker.style.display = 'none';
+      }
+      for (const label of ['Log in', 'Sign up for free']) {
+        for (const marker of exactText(label)) {
+          (marker.closest('a,button') ?? marker).style.display = 'none';
+        }
+      }
+      const disclaimer = [...document.querySelectorAll('body *')]
+        .filter(node => {
+          const rect = node.getBoundingClientRect();
+          return node.innerText?.trim().startsWith('ChatGPT is AI.') &&
+            rect.width > 0 && rect.width <= 1000 && rect.height > 0 && rect.height <= 80;
+        })
+        .sort((a, b) => {
+          const ar = a.getBoundingClientRect();
+          const br = b.getBoundingClientRect();
+          return ar.width * ar.height - br.width * br.height;
+        })[0];
+      if (disclaimer) disclaimer.style.display = 'none';
+      let footerMask = document.getElementById('chat-cleanup-store-footer-mask');
+      if (!footerMask) {
+        footerMask = document.createElement('div');
+        footerMask.id = 'chat-cleanup-store-footer-mask';
+        footerMask.setAttribute('aria-hidden', 'true');
+        footerMask.style.cssText = [
+          'position:fixed', 'left:260px', 'right:0', 'bottom:0', 'height:34px',
+          'z-index:2147483644', 'background:#000', 'pointer-events:none',
+        ].join(';');
+        document.body.appendChild(footerMask);
       }
       for (const marker of exactText('We use cookies')) {
         let node = marker;
@@ -322,12 +357,11 @@ try {
           node = node.parentElement;
         }
       }
-      let card = document.getElementById('chat-cleanup-store-caption');
-      if (!card) {
-        card = document.createElement('section');
-        card.id = 'chat-cleanup-store-caption';
-        card.setAttribute('aria-hidden', 'true');
-        card.style.cssText = [
+      document.getElementById('chat-cleanup-store-caption')?.remove();
+      const card = document.createElement('section');
+      card.id = 'chat-cleanup-store-caption';
+      card.setAttribute('aria-hidden', 'true');
+      card.style.cssText = [
           'position:fixed', 'left:72px', 'top:50%', 'transform:translateY(-50%)',
           'width:470px', 'box-sizing:border-box', 'z-index:2147483647',
           'padding:32px 34px 32px 38px', 'border:1px solid rgba(201,242,123,.4)',
@@ -336,10 +370,9 @@ try {
           'box-shadow:0 34px 100px rgba(0,0,0,.78),0 12px 34px rgba(0,0,0,.55),0 0 52px rgba(201,242,123,.09),inset 0 1px 0 rgba(255,255,255,.05)',
           'font-family:system-ui,-apple-system,sans-serif', 'overflow:hidden',
           'color:#f4f3ed', 'pointer-events:none', 'backdrop-filter:blur(24px) saturate(120%)',
-        ].join(';');
-        card.innerHTML = '<div data-eyebrow></div><h1></h1><p></p>';
-        document.body.appendChild(card);
-      }
+      ].join(';');
+      card.innerHTML = '<div data-eyebrow></div><h1></h1><p></p>';
+      document.body.appendChild(card);
       const eyebrow = card.querySelector('[data-eyebrow]');
       const heading = card.querySelector('h1');
       const paragraph = card.querySelector('p');
@@ -350,6 +383,11 @@ try {
       heading.style.cssText = 'color:#f4f3ed;font:700 38px/1.08 system-ui;margin:0 0 16px;letter-spacing:-.03em';
       paragraph.style.cssText = 'color:#c9ccc9;font:400 18px/1.5 system-ui;margin:0;max-width:390px';
     })()`);
+    await evaluate(`(() => {
+      const card = document.getElementById('chat-cleanup-store-caption');
+      if (!card) throw new Error('Missing store caption');
+      storeRoots.at(-1).appendChild(card);
+    })()`);
   };
 
   const capture = async (name) => {
@@ -359,6 +397,8 @@ try {
     assert.doesNotMatch(bodyText, /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i, 'Email found in capture page');
     assert.doesNotMatch(bodyText, /We use cookies/, 'Cookie banner found in capture page');
     assert.doesNotMatch(bodyText, /What can you do\?/, 'ChatGPT suggestion found in capture page');
+    assert.doesNotMatch(bodyText, /Get responses tailored to you|ChatGPT is AI\.|Sign up for free/,
+      'Guest-only ChatGPT copy found in capture page');
     const shot = await cdp('Page.captureScreenshot', { format: 'png', fromSurface: true });
     const data = Buffer.from(shot.data, 'base64');
     assert.equal(data.readUInt32BE(16), 1280, 'Screenshot width');
