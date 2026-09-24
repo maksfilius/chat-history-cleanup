@@ -1,6 +1,6 @@
 # Privacy Policy — Chat Cleanup
 
-Last updated: 2026-09-22
+Last updated: 2026-09-24
 
 ## Summary
 
@@ -63,6 +63,14 @@ different account.
   with ChatGPT on the page where you invoke it.
 
 No other Chrome permissions are requested.
+
+## Limited Use
+
+Chat Cleanup's use of user data complies with the
+[Chrome Web Store User Data Policy](https://developer.chrome.com/docs/webstore/program-policies/user-data),
+including the Limited Use requirements. User data is used only to provide the cleanup
+functionality described in the extension's listing and interface. It is not sold, used for
+advertising or creditworthiness, or used for any unrelated purpose.
 
 ## Your controls
 
