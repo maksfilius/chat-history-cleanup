@@ -35,11 +35,15 @@ Expected SHA-256:
 - Contact email: `chatcleanup.support@gmail.com`.
 - Mature content: `No` / unchecked.
 
-The short description is read from `manifest.json`:
+The currently published short description is read from `manifest.json`:
 
 ```text
 Select, review, archive, or delete multiple ChatGPT chats safely. Protect important conversations and resume interrupted batches.
 ```
+
+For the next package, use the more search-oriented 128-character summary prepared in `listing.md`.
+Changing this summary requires a new package because it is part of the manifest. The expanded
+detailed description can be updated separately in the Store listing dashboard.
 
 ## 3. Privacy practices
 

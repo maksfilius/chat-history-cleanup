@@ -11,46 +11,61 @@ Chat Cleanup — Bulk Archive & Delete
 
 Select, review, archive, or delete multiple ChatGPT chats safely. Protect important conversations and resume interrupted batches.
 
+Recommended for the next extension package (128 characters):
+
+Bulk delete or archive ChatGPT chats safely. Filter by age, review every selection, protect important chats, and resume anytime.
+
 ## Category
 
 Productivity
 
 ## Detailed description
 
-Review and clean a large ChatGPT conversation history without opening and removing chats one by
-one.
+Bulk delete or archive selected ChatGPT chats without clearing your entire history.
 
-Chat Cleanup adds a focused cleanup panel directly to ChatGPT. Select conversations manually,
-with Shift-click, all at once, by Project, or with deterministic age presets for 30, 90, 180, and
-365 days. An untitled-chat rule is also included. The extension never scores importance with AI
-and never deletes automatically.
+Chat Cleanup adds multi-select and cleanup filters directly to chatgpt.com. Choose old or unwanted
+conversations, review the exact titles and count, then archive them or permanently delete them.
 
-**Review the exact batch**
+WHAT YOU CAN DO
 
-Before archive or permanent deletion, the confirmation shows the exact conversation titles and
-total count. Delete requires an explicit confirmation and clearly states that it cannot be undone.
+• Select individual conversations or a range with Shift-click
+• Select all eligible conversations at once
+• Find chats older than 30, 90, 180, or 365 days
+• Find untitled conversations
+• Review the exact batch before anything changes
+• Bulk archive or permanently delete the selected chats
+• Stop an active batch and resume it after reloading the page
+• See progress and failures for every conversation
 
-**Protect important conversations**
+BUILT TO PREVENT ACCIDENTS
 
-Pinned chats, chats inside Projects, manually protected chats, and chats with unknown protection
-metadata are excluded from global and rule-based selection. You can still include a protected chat
-by selecting it explicitly; the confirmation identifies the override. The extension changes only
-conversations, never the Project itself.
+Nothing is deleted automatically. Every archive or delete batch requires confirmation and shows
+the affected titles and total count. Permanent deletion has a separate warning because it cannot
+be undone.
 
-**Recover interrupted cleanup**
+Pinned chats, chats inside Projects, manually protected chats, and chats whose protection status
+cannot be verified are skipped by automatic filters and Select all. You can still select a
+protected conversation manually, and Chat Cleanup identifies that override before starting.
 
-Archive runs sequentially and delete uses at most two in-flight conversations. Each result is
-checked against ChatGPT. Rate limits stop the batch cleanly, failures remain visible, and unfinished
-state is stored locally so you can resume after a reload. An uncertain request is reconciled before
-the extension can send it again.
+If you may need a conversation later, choose Archive. Archived chats leave the sidebar but remain
+available through ChatGPT settings.
 
-**Local and narrow by design**
+HOW IT WORKS
 
-There is no Chat Cleanup account, backend, analytics, advertising, or cloud sync. The extension
-runs only on chatgpt.com and sends requests only to ChatGPT through your signed-in session. It asks
-for informed consent before reading history. Verification can download a selected conversation's
-detail response, which may contain messages; message content is not analyzed, retained, or sent to
-the developer. See the linked privacy policy for the complete disclosure.
+1. Open ChatGPT and click the Clean up button.
+2. Select conversations manually or apply an age filter.
+3. Review the exact list of chats.
+4. Choose Archive or Delete and follow the visible progress.
+
+PRIVATE BY DESIGN
+
+Chat Cleanup has no account, backend, analytics, advertising, or cloud sync. It runs only on
+chatgpt.com and communicates only with ChatGPT through your existing signed-in session. Message
+content is not analyzed, retained, or sent to the developer. Protection and unfinished-batch state
+are stored locally in Chrome.
+
+Chat Cleanup is free. It works with the ChatGPT web app in Chrome and requires a signed-in ChatGPT
+account.
 
 Chat Cleanup is an independent extension and is not affiliated with or endorsed by OpenAI.
 
