@@ -1,13 +1,19 @@
 # Public site
 
-Deployed by `.github/workflows/pages.yml` on every push to `main` that touches `pages/`,
-`landing/`, `src/` or `public/`.
+Deployed by `.github/workflows/pages.yml` on every push to `main` that touches `pages/`.
 
 | Path        | Source                                                        |
 | ----------- | ------------------------------------------------------------- |
 | `/`         | `pages/index.html` — the marketing landing page                |
+| `/blog/`    | `pages/blog/` — index plus one directory per post              |
 | `/privacy/` | `pages/privacy/index.html` — the Chrome Web Store privacy URL  |
-| `/demo/`    | built from `landing/` by `npm run build:landing`               |
+
+`pages/article.css` is shared by the blog and the privacy policy. Adding a post means a new
+`pages/blog/<slug>/index.html`, a card in `pages/blog/index.html`, and a `<url>` in
+`sitemap.xml` — there is no generator.
+
+The interactive demo in `landing/` is no longer published; it stays as a local harness for
+`npm run test:landing`.
 
 The landing page is a single self-contained file with inlined CSS and a short script at the end
 for the scroll reveals. Open `pages/index.html` directly in a browser to preview it.
@@ -29,8 +35,18 @@ The header, hero, final CTA and structured data point to the published Chrome We
 
 ## Custom domain
 
-Three absolute URLs are marked in `index.html` (`canonical`, `og:url`, `og:image`); update them,
-the `url` in the JSON-LD block, `robots.txt` and `sitemap.xml`, then add a `CNAME` file here.
+The site hardcodes `https://maksfilius.github.io/chat-history-cleanup` in canonical tags, Open
+Graph tags, JSON-LD, `robots.txt` and `sitemap.xml` — 28 occurrences across 7 files. Swap them in
+one pass and drop a `CNAME` next to this file:
+
+```bash
+grep -rl 'maksfilius.github.io/chat-history-cleanup' pages/ \
+  | xargs sed -i '' 's|https://maksfilius.github.io/chat-history-cleanup|https://example.com|g'
+printf 'example.com\n' > pages/CNAME
+```
+
+Then point DNS at GitHub Pages and re-enable HTTPS in the repository's Pages settings. Do it
+before the old URLs get indexed; afterwards it costs redirects that GitHub Pages cannot serve.
 
 ## Screenshots
 
