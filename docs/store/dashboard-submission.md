@@ -32,6 +32,7 @@ Expected SHA-256:
 - Official URL: leave empty until the publisher controls a verified product domain.
 - Homepage URL: leave empty until the product landing page is current.
 - Support URL: `https://github.com/maksfilius/chat-history-cleanup/issues`.
+- Contact email: `chatcleanup.support@gmail.com`.
 - Mature content: `No` / unchecked.
 
 The short description is read from `manifest.json`:

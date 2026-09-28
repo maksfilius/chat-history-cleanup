@@ -34,7 +34,7 @@ The normal `npm run build` also rebuilds the landing so it follows product chang
   The landing launch button adds a pulsing glow. A separate
   decorative Try it annotation and curved arrow point to it from outside its clickable area. The panel width
   is constrained on narrow screens; its controls and behavior match the product.
-- The store CTA says the extension is in development until a real store link exists.
+- Both Get Chat Cleanup actions open the published Chrome Web Store listing in a new tab.
 
 ## Files
 

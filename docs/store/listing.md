@@ -98,9 +98,11 @@ substance.
 - The 440×280 small promotional tile is ready. A 1400×560 marquee tile is optional.
 - Do not show real names, email addresses, private titles, message text, or account identifiers.
 
-## Publisher fields still required
+## Published listing
 
-- Public HTTPS URL hosting `PRIVACY.md`.
-- Working support email and support URL.
-- Primary language and distribution regions.
-- Publisher identity/trader-status fields required for the selected regions.
+- Store URL: `https://chromewebstore.google.com/detail/chat-cleanup-%E2%80%94-bulk-archi/ldaeofnbfjlljghcfflkalndgfkdeahi`.
+- Extension ID: `ldaeofnbfjlljghcfflkalndgfkdeahi`.
+- Public privacy policy: `https://maksfilius.github.io/chat-history-cleanup/privacy/`.
+- Support email: `chatcleanup.support@gmail.com`.
+- Support URL: `https://github.com/maksfilius/chat-history-cleanup/issues`.
+- Version `0.1.0` was approved and publicly released on 2026-09-28.

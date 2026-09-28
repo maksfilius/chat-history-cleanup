@@ -1,7 +1,9 @@
 # Installing the test build
 
-This is a pre-release build, installed by hand. It is not in the Chrome Web Store yet, so
-Chrome will not update it automatically — you get a new version by repeating these steps.
+These instructions install a development build by hand. For normal use, install the published
+[Chrome Web Store release](https://chromewebstore.google.com/detail/chat-cleanup-%E2%80%94-bulk-archi/ldaeofnbfjlljghcfflkalndgfkdeahi),
+which Chrome updates automatically. A hand-installed build must be updated by repeating these
+steps.
 
 ## Install
 

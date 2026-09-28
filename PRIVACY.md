@@ -1,6 +1,6 @@
 # Privacy Policy — Chat Cleanup
 
-Last updated: 2026-09-24
+Last updated: 2026-09-28
 
 ## Summary
 
@@ -80,5 +80,5 @@ uninstall the extension to remove its local data.
 
 ## Contact
 
-For privacy or support questions, open an issue at
+For privacy or support questions, email <chatcleanup.support@gmail.com> or open an issue at
 <https://github.com/maksfilius/chat-history-cleanup/issues>.

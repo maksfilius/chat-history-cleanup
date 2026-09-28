@@ -4,11 +4,12 @@ A focused Chrome extension for reviewing and bulk-cleaning a large ChatGPT conve
 
 > Clean hundreds of old ChatGPT chats safely in minutes.
 
+[Install Chat Cleanup from the Chrome Web Store](https://chromewebstore.google.com/detail/chat-cleanup-%E2%80%94-bulk-archi/ldaeofnbfjlljghcfflkalndgfkdeahi)
+
 ## Release status
 
-The repository contains a tested **release candidate**, not a submitted public release. Automated
-checks pass, but a real-account regression run and the remaining Chrome Web Store publisher work
-are still required. See [RELEASE_READINESS.md](RELEASE_READINESS.md).
+Version `0.1.0` is published in the Chrome Web Store. Automated checks pass; ongoing compatibility
+still depends on ChatGPT's undocumented web endpoints. See [RELEASE_READINESS.md](RELEASE_READINESS.md).
 
 The extension uses undocumented ChatGPT web endpoints. They can change without notice, and the
 current OpenAI terms restrict automatic or programmatic extraction. The publisher decided to keep

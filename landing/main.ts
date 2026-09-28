@@ -160,7 +160,6 @@ $('composer').addEventListener('submit', async (event) => {
   showChat(chat);
 });
 for (const id of ['reset-button', 'hero-replay']) $(id).addEventListener('click', () => void reset());
-for (const id of ['get-button', 'finish-get']) $(id).addEventListener('click', () => $<HTMLDialogElement>('info-dialog').showModal());
 $('mobile-menu').addEventListener('click', () => setSidebar(!$('sidebar').classList.contains('is-open')));
 $('sidebar-scrim').addEventListener('click', () => setSidebar(false));
 matchMedia('(max-width:650px)').addEventListener('change', () => setSidebar(false));

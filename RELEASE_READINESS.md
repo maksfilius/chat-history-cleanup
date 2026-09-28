@@ -1,12 +1,12 @@
-# Release readiness — 2026-09-17
+# Release readiness — 2026-09-28
 
 ## Decision
 
-**Code status: release candidate. Public-release status: blocked pending publisher actions.**
+**Code status: released. Public-release status: version 0.1.0 is live in the Chrome Web Store.**
 
-The code-level blockers from the 2026-09-05 audit have been addressed and the synthetic release
-suite passes. The remaining blockers require a real ChatGPT account, Chrome Web Store publisher
-access, and public policy/contact URLs.
+The code-level blockers from the 2026-09-05 audit were addressed, the synthetic release suite
+passed, and Google approved the first public submission. The published listing is
+[Chat Cleanup — Bulk Archive & Delete](https://chromewebstore.google.com/detail/chat-cleanup-%E2%80%94-bulk-archi/ldaeofnbfjlljghcfflkalndgfkdeahi).
 
 The publisher decided on 2026-09-16 to keep the hardened private-endpoint adapter for initial
 market validation and accept the documented OpenAI-terms risk. This is a business risk decision,
@@ -57,23 +57,21 @@ an official or public OpenAI API. A permission request remains prepared and reco
 These tests use synthetic conversations. They do not prove that today's private ChatGPT endpoints
 still behave the same on a real account.
 
-## Publisher blockers
+## Publication record and follow-up
 
-1. **Real-account regression.** Run every item in
+1. **Real-account regression.** Keep running every applicable item in
    [docs/store/regression-checklist.md](docs/store/regression-checklist.md) on disposable chats,
    including multi-page history, Projects, pinned chats, two tabs, account switch, Stop/Resume,
    one archive, and one permanent delete.
-2. **Privacy publication.** Host [PRIVACY.md](PRIVACY.md) at a stable public HTTPS URL and enter it
-   in the Store dashboard. Add a working support email/URL. Chrome requires disclosure even when
-   data stays local; dashboard answers must match the product and policy. See Chrome's
+2. **Privacy publication: complete.** [PRIVACY.md](PRIVACY.md) is published at a stable
+   [HTTPS URL](https://maksfilius.github.io/chat-history-cleanup/privacy/), with
+   `chatcleanup.support@gmail.com` and the public issue tracker as support channels. Chrome requires
+   disclosure even when data stays local; dashboard answers must continue to match the product and
+   policy. See Chrome's
    [User Data FAQ](https://developer.chrome.com/docs/webstore/program-policies/user-data-faq).
-3. **Publisher account.** Register the Chrome Web Store developer account, pay Google's registration
-   fee, enable two-step verification, and complete identity/trader-status fields required for the
-   chosen regions.
-4. **Dashboard submission.** Upload `chat-cleanup.zip`, the prepared assets in
-   [docs/store/assets](docs/store/assets), complete Store listing, Privacy, and
-   Distribution tabs, choose initial visibility, and submit for review. A private or unlisted item
-   still undergoes the same policy review.
+3. **Publisher account: complete.** The account is registered and the contact email is verified.
+4. **Dashboard submission: complete.** Google approved version `0.1.0`, and it was publicly
+   released on 2026-09-28 under extension ID `ldaeofnbfjlljghcfflkalndgfkdeahi`.
 
 ## Accepted distribution risk
 

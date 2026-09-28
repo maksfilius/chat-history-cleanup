@@ -10,11 +10,13 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const output = resolve(root, 'docs/store/assets');
+// CAPTURE_OUT/CAPTURE_NO_CAPTION let the landing reuse this capture without the store caption.
+const output = resolve(root, process.env.CAPTURE_OUT ?? 'docs/store/assets');
+const captions = !process.env.CAPTURE_NO_CAPTION;
 const profile = mkdtempSync(join(tmpdir(), 'chat-cleanup-store-capture-'));
 const chrome = process.env.CHROME_BIN ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const bundle = readFileSync(resolve(root, 'dist/content.js'), 'utf8');
@@ -346,18 +348,25 @@ try {
         ].join(';');
         document.body.appendChild(footerMask);
       }
-      for (const marker of exactText('We use cookies')) {
-        let node = marker;
-        while (node && node !== document.body) {
-          const rect = node.getBoundingClientRect();
-          if (rect.width >= innerWidth * .8 && rect.bottom >= innerHeight - 2 && rect.height < 300) {
-            node.remove();
-            break;
-          }
-          node = node.parentElement;
+      // The consent banner's layout changes; anchor on its text and drop the whole overlay it
+      // lives in rather than on a shape that only held for one version of the page.
+      const cookieMarkers = [...document.querySelectorAll('body *')]
+        .filter(node => node.children.length === 0 &&
+          node.textContent.trim().startsWith('We use cookies'));
+      for (const marker of cookieMarkers) {
+        const chain = [];
+        for (let node = marker; node && node !== document.body; node = node.parentElement) {
+          chain.push(node);
         }
+        const overlay = chain.find(node => {
+          const style = getComputedStyle(node);
+          return style.position === 'fixed' || node.tagName === 'DIALOG' ||
+            node.getAttribute('role') === 'dialog';
+        }) ?? chain.at(-1);
+        overlay?.remove();
       }
       document.getElementById('chat-cleanup-store-caption')?.remove();
+      if (!${JSON.stringify(captions)}) return;
       const card = document.createElement('section');
       card.id = 'chat-cleanup-store-caption';
       card.setAttribute('aria-hidden', 'true');
@@ -383,6 +392,7 @@ try {
       heading.style.cssText = 'color:#f4f3ed;font:700 38px/1.08 system-ui;margin:0 0 16px;letter-spacing:-.03em';
       paragraph.style.cssText = 'color:#c9ccc9;font:400 18px/1.5 system-ui;margin:0;max-width:390px';
     })()`);
+    if (!captions) return;
     await evaluate(`(() => {
       const card = document.getElementById('chat-cleanup-store-caption');
       if (!card) throw new Error('Missing store caption');
@@ -404,7 +414,7 @@ try {
     assert.equal(data.readUInt32BE(16), 1280, 'Screenshot width');
     assert.equal(data.readUInt32BE(20), 800, 'Screenshot height');
     writeFileSync(resolve(output, name), data);
-    console.log(`Store screenshot: docs/store/assets/${name}`);
+    console.log(`Store screenshot: ${relative(root, resolve(output, name))}`);
   };
 
   await click('.cc-open');

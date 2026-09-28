@@ -61,6 +61,11 @@ button {
   transition:background .18s,transform .18s,opacity .18s;
 }
 
+.top-cta,.finish-cta {
+  cursor:pointer;
+  transition:background .18s,transform .18s,opacity .18s;
+}
+
 button:active:not(:disabled) {
   transform:translateY(1px);
 }
@@ -620,52 +625,6 @@ h1 span {
   font-size:11px;
 }
 
-.modal {
-  position:fixed;
-  background:#252925;
-  color:var(--text);
-  border:1px solid #c5dea32d;
-  border-radius:17px;
-  width:min(440px,calc(100% - 32px));
-  max-height:calc(100svh - 40px);
-  padding:30px;
-  box-shadow:0 25px 100px #0007;
-  overflow:auto;
-}
-
-.modal::backdrop {
-  background:#101511ad;
-  backdrop-filter:blur(5px);
-}
-
-.modal form {
-  position:relative;
-}
-
-.modal-close {
-  position:absolute;
-  top:-10px;
-  right:-10px;
-}
-
-.modal h2 {
-  font-size:25px;
-  line-height:1.25;
-  letter-spacing:-.7px;
-  font-weight:550;
-  margin:10px 0 15px;
-}
-
-.modal p {
-  font-size:12px;
-  line-height:1.8;
-  color:#9aa792;
-}
-
-.modal .finish-cta {
-  width:100%;
-}
-
 .mobile-menu,.mobile-brand {
   display:none;
 }
@@ -889,12 +848,6 @@ h1 span {
   }
   .chat-view h2 {
     font-size:26px;
-  }
-  .modal {
-    padding:25px;
-  }
-  .modal h2 {
-    font-size:23px;
   }
 }
 

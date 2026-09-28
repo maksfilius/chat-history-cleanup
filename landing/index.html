@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
   <meta name="theme-color" content="#202222">
   <meta name="description" content="A little less chat history. A lot more headspace. Try Chat Cleanup in an interactive demo workspace.">
   <title>Chat Cleanup — Make room for what’s next.</title>
@@ -95,7 +96,7 @@
       <header class="topbar">
         <button class="icon-button mobile-menu" id="mobile-menu" aria-label="Open chat history" aria-controls="sidebar" aria-expanded="false"><svg><use href="#menu"/></svg></button>
         <div class="workspace-name"><span class="workspace-label">Your workspace</span><span class="mobile-brand"><svg class="brand-logo" width="24" height="24" aria-hidden="true"><use href="#chat-cleanup-logo"/></svg>Chat Cleanup</span></div>
-        <nav aria-label="Page navigation"><button class="top-cta" id="get-button"><svg><use href="#chrome"/></svg>Get Chat Cleanup<svg class="small-arrow"><use href="#arrow"/></svg></button></nav>
+        <nav aria-label="Page navigation"><a class="top-cta" id="get-button" href="https://chromewebstore.google.com/detail/chat-cleanup-%E2%80%94-bulk-archi/ldaeofnbfjlljghcfflkalndgfkdeahi" target="_blank" rel="noopener"><svg><use href="#chrome"/></svg>Get Chat Cleanup<svg class="small-arrow"><use href="#arrow"/></svg></a></nav>
       </header>
 
       <section class="stage" id="stage" aria-label="Interactive Chat Cleanup preview">
@@ -108,7 +109,7 @@
           <div class="clean-symbol"><svg class="brand-logo" width="64" height="64" aria-hidden="true"><use href="#chat-cleanup-logo"/></svg><span class="orbit orbit-one"></span><span class="orbit orbit-two"></span></div>
           <h1>Room for your<br><span>next great idea.</span></h1>
           <p class="hero-copy" id="clean-description"></p>
-          <button class="finish-cta" id="finish-get"><svg><use href="#chrome"/></svg>Get Chat Cleanup<svg><use href="#arrow"/></svg></button>
+          <a class="finish-cta" id="finish-get" href="https://chromewebstore.google.com/detail/chat-cleanup-%E2%80%94-bulk-archi/ldaeofnbfjlljghcfflkalndgfkdeahi" target="_blank" rel="noopener"><svg><use href="#chrome"/></svg>Get Chat Cleanup<svg><use href="#arrow"/></svg></a>
           <button class="replay-text" id="hero-replay"><svg><use href="#reset"/></svg>Reset demo</button>
         </div>
 
@@ -122,14 +123,5 @@
 
     </main>
   </div>
-
-  <dialog id="info-dialog" class="modal">
-    <form method="dialog">
-      <button class="icon-button modal-close" value="close" aria-label="Close"><svg><use href="#close"/></svg></button>
-      <h2>Coming to Chrome.</h2>
-      <p>Chat Cleanup is in development.</p>
-      <button class="finish-cta" value="close">Back to demo</button>
-    </form>
-  </dialog>
 </body>
 </html>

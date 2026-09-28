@@ -163,9 +163,10 @@ try {
   assert.equal(await ui(`root.querySelector('.cc-total').textContent`), '4 conversations');
   assert.equal(await ui(`root.querySelector('.cc-sum').hidden`), false);
   await click('.cc-x');
-  await click('#finish-get');
-  assert.match(await evaluate(`document.querySelector('#info-dialog').textContent`), /in development/);
-  await click('#info-dialog .modal-close');
+  assert.equal(await evaluate(`document.querySelector('#finish-get').href`),
+    'https://chromewebstore.google.com/detail/chat-cleanup-%E2%80%94-bulk-archi/ldaeofnbfjlljghcfflkalndgfkdeahi');
+  assert.equal(await evaluate(`document.querySelector('#get-button').target`), '_blank');
+  assert.equal(await evaluate(`document.querySelector('#info-dialog')`), null);
   await click('#hero-replay');
   await click('.cc-open');
   await click('.cc-all');
