@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#111511" />
+
+    <title>Is a ChatGPT Bulk Delete Extension Safe? Five Checks Before You Install</title>
+    <meta
+      name="description"
+      content="Anything that can bulk delete your ChatGPT chats can also read them. Five concrete checks — permissions, privacy practices, accounts, publisher, uninstall — before you install one."
+    />
+    <link
+      rel="canonical"
+      href="https://maksfilius.github.io/chat-history-cleanup/blog/is-a-chatgpt-bulk-delete-extension-safe/"
+    />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Chat Cleanup" />
+    <meta property="og:title" content="Is a ChatGPT bulk delete extension safe?" />
+    <meta
+      property="og:description"
+      content="Anything that can bulk delete your ChatGPT chats can also read them. Five concrete checks before you install one."
+    />
+    <meta
+      property="og:url"
+      content="https://maksfilius.github.io/chat-history-cleanup/blog/is-a-chatgpt-bulk-delete-extension-safe/"
+    />
+    <meta property="og:image" content="https://maksfilius.github.io/chat-history-cleanup/assets/shot-review.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <link rel="icon" type="image/svg+xml" href="../../assets/logo.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="../../assets/icon32.png" />
+    <link rel="stylesheet" href="../../article.css" />
+  </head>
+
+  <body>
+    <main>
+      <header>
+        <a class="brand" href="../../"
+          ><img class="mark" src="../../assets/logo.svg" alt="" width="30" height="30" /> Chat
+          Cleanup</a
+        >
+        <h1>Is a ChatGPT bulk delete extension safe?</h1>
+        <p class="updated">28 September 2026 · 7 min read</p>
+        <div class="summary">
+          <p>
+            <strong>Short answer:</strong> it depends entirely on which one, and you can check
+            before you install. Anything that can delete your chats can also read them — that is
+            not a flaw, it is how the feature works. What separates a safe extension from a risky
+            one is how narrow its permissions are, whether it needs a server, and whether the
+            developer will tell you plainly what leaves your browser.
+          </p>
+        </div>
+      </header>
+
+      <section>
+        <h2>What an extension with access to chatgpt.com can actually do</h2>
+        <p>
+          A bulk delete extension works by injecting a script into the ChatGPT page. Once there, it
+          can see everything the page can see and make the same requests the page makes, using your
+          signed-in session. In practice that means it can read your full conversation list —
+          titles, dates, which chats are pinned — and it can send archive and delete requests on
+          your behalf.
+        </p>
+        <p>
+          It could also, technically, read the content of your conversations and send it somewhere.
+          Nothing about the permission model prevents that. This is the actual question you are
+          asking when you ask whether one of these is safe.
+        </p>
+        <p>
+          What it <em>cannot</em> do is touch other sites. An extension that requests access to
+          <code>chatgpt.com</code> has no visibility into your email, your bank, or any other tab.
+          That boundary is enforced by Chrome, not by the developer's good intentions — which is
+          why the permission list is the first thing to look at.
+        </p>
+      </section>
+
+      <section>
+        <h2>Five checks before you install</h2>
+
+        <h3>1. Read the permission list Chrome shows you</h3>
+        <p>
+          When you click Add to Chrome, the browser tells you what the extension is asking for.
+          This is the single most informative screen in the whole process, and almost nobody reads
+          it.
+        </p>
+        <p>
+          A cleanup tool needs access to one site and somewhere to keep local state. If it asks to
+          "read and change all your data on all websites", it is requesting access to every page
+          you visit, forever. There are legitimate reasons for that in some categories of
+          extension. Deleting ChatGPT chats is not one of them.
+        </p>
+        <p>
+          Chrome also re-asks if an update widens the permissions: an extension that adds new
+          required permissions is disabled until you approve them. So the list you approve at
+          install is meaningful over time, not just on day one.
+        </p>
+
+        <h3>2. Open the Privacy practices section of the Store listing</h3>
+        <p>
+          Every Chrome Web Store listing has a Privacy practices tab where the developer must
+          declare what data the extension collects, state a single purpose, justify each
+          permission, and certify compliance with the Limited Use requirements.
+        </p>
+        <p>
+          Read the justifications. A developer who has thought about this writes specific sentences
+          about specific permissions. A developer who has not writes "needed for functionality" and
+          hopes you move on.
+        </p>
+
+        <h3>3. Does it require an account, a login, or "sync"?</h3>
+        <p>
+          This is the clearest signal available and it takes two seconds. If an extension asks you
+          to create an account, or offers to sync your chat organisation across devices, then your
+          data is going to a server the developer operates. That may be fine — plenty of
+          well-behaved products work this way — but you have moved from "this runs in my browser"
+          to "I am trusting a third party's infrastructure and retention policy".
+        </p>
+        <p>
+          For a tool whose entire job is removing things, there is no functional reason to need
+          one.
+        </p>
+
+        <h3>4. Look at the publisher, the user count and the update date</h3>
+        <p>
+          Not proof of anything, but useful context. An extension with a handful of users, no
+          identifiable publisher and no update in two years is a different proposition from one
+          with an active listing and a support channel that answers.
+        </p>
+        <p>
+          Reviews are worth skimming for a specific failure mode: people reporting that the
+          extension deleted more than they selected. That is the complaint that matters here.
+        </p>
+
+        <h3>5. Check what happens when you uninstall</h3>
+        <p>
+          An extension that keeps its state in your browser profile takes that state with it when
+          you remove it. An extension that keeps state on a server does not, and you are now in the
+          business of requesting deletion from a developer by email.
+        </p>
+      </section>
+
+      <section>
+        <h2>Red flags, in rough order of seriousness</h2>
+        <ul>
+          <li>
+            <strong>Access to all websites</strong> when the extension only claims to work on one.
+          </li>
+          <li>
+            <strong>A required account</strong> for a feature that is purely local in nature.
+          </li>
+          <li>
+            <strong>Analytics or advertising SDKs</strong> declared in the privacy practices, or a
+            privacy policy that reserves the right to share data with "partners".
+          </li>
+          <li>
+            <strong>No privacy policy at all</strong>, or one that is a copy-pasted template with
+            another product's name still in it.
+          </li>
+          <li>
+            <strong>One-click "delete everything" with no review step.</strong> Not a privacy
+            problem, a blast-radius problem — see below.
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>The risk that has nothing to do with the extension</h2>
+        <p>
+          Even a perfectly trustworthy tool can ruin your afternoon, because deleting a ChatGPT
+          conversation is irreversible. It is removed from your account immediately and OpenAI
+          support cannot bring it back. The thirty-day figure you may have seen refers to OpenAI's
+          schedule for purging the data from their systems — it is not a recycle bin.
+        </p>
+        <p>
+          So the safety question has two halves. The first is "will this extension leak my data".
+          The second, and the one far more likely to bite you, is "will this extension remove
+          something I wanted". Insist on a tool that shows you the exact list of titles before it
+          acts, keeps permanent deletion behind a separate confirmation, and offers archiving as
+          the reversible alternative. And
+          <a href="../delete-old-chatgpt-chats-keep-important-ones/">export your data first</a>.
+        </p>
+      </section>
+
+      <section>
+        <h2>Where Chat Cleanup lands on each check</h2>
+        <p>
+          It would be a strange article that listed five checks and then asked you to skip them for
+          the tool it is attached to, so here is the same audit applied to
+          <a href="../../">Chat Cleanup</a>, including the part that is less tidy.
+        </p>
+        <ul>
+          <li>
+            <strong>Permissions:</strong> two. <code>storage</code>, and access to
+            <code>chatgpt.com</code>. No other host, no tabs, no all-sites access.
+          </li>
+          <li>
+            <strong>Server:</strong> none. There is no Chat Cleanup account, backend, cloud sync,
+            analytics or advertising, so there is nowhere for your data to be sent.
+          </li>
+          <li>
+            <strong>Local state:</strong> your consent record, manually protected conversation IDs
+            and any unfinished batch live in your Chrome profile and leave with the extension.
+          </li>
+          <li>
+            <strong>Consent:</strong> it shows a disclosure and asks before it reads your history
+            for the first time.
+          </li>
+          <li>
+            <strong>The untidy part:</strong> to confirm that a chat really was archived or
+            deleted, the extension fetches that conversation's detail response from ChatGPT, and
+            that response can contain message text. It is read in your browser to check the
+            conversation's identity and archive state, and nothing about it is analysed, stored or
+            transmitted to the developer. We would rather say this plainly than let you discover it
+            later — it is in the
+            <a href="../../privacy/">privacy policy</a> in the same words.
+          </li>
+          <li>
+            <strong>Blast radius:</strong> every batch shows the exact titles and count first,
+            permanent deletion needs its own confirmation, and pinned, Project and manually
+            protected chats are excluded from bulk selection by default.
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>The short version</h2>
+        <p>
+          "Is it safe" is not answerable about the category, only about a specific extension, and
+          the answer is sitting in two screens you can read in under a minute: the permission
+          prompt and the Privacy practices tab. Narrow permissions, no account, a named publisher,
+          and a developer willing to describe the awkward parts in plain language. If any of those
+          is missing, there are other options.
+        </p>
+      </section>
+
+      <div class="cta">
+        <h2>Two permissions, no backend</h2>
+        <p>
+          Chat Cleanup runs only on chatgpt.com, keeps its state in your browser, and shows you
+          every title before anything is removed. Free, no account.
+        </p>
+        <a
+          class="btn"
+          href="https://chromewebstore.google.com/detail/chat-cleanup-%E2%80%94-bulk-archi/ldaeofnbfjlljghcfflkalndgfkdeahi"
+          target="_blank"
+          rel="noopener"
+          >Add to Chrome ↗</a
+        >
+      </div>
+
+      <footer class="doc-footer">
+        <nav>
+          <a href="../">All posts</a>
+          <a href="../../">Chat Cleanup</a>
+          <a href="../../privacy/">Privacy policy</a>
+        </nav>
+        <p>
+          Chat Cleanup is an independent Chrome extension, not affiliated with, endorsed by, or
+          sponsored by OpenAI. ChatGPT is a trademark of OpenAI.
+        </p>
+      </footer>
+    </main>
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "BlogPosting",
+            "headline": "Is a ChatGPT bulk delete extension safe?",
+            "description": "Anything that can bulk delete your ChatGPT chats can also read them. Five concrete checks — permissions, privacy practices, accounts, publisher, uninstall — before you install one.",
+            "datePublished": "2026-09-28",
+            "dateModified": "2026-09-28",
+            "inLanguage": "en",
+            "mainEntityOfPage": "https://maksfilius.github.io/chat-history-cleanup/blog/is-a-chatgpt-bulk-delete-extension-safe/",
+            "author": { "@type": "Organization", "name": "Chat Cleanup" },
+            "publisher": { "@type": "Organization", "name": "Chat Cleanup" }
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "Chat Cleanup",
+                "item": "https://maksfilius.github.io/chat-history-cleanup/"
+              },
+              {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "Blog",
+                "item": "https://maksfilius.github.io/chat-history-cleanup/blog/"
+              },
+              {
+                "@type": "ListItem",
+                "position": 3,
+                "name": "Is a ChatGPT bulk delete extension safe?"
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+  </body>
+</html>

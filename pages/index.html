@@ -3,13 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="color-scheme" content="light" />
-    <meta name="theme-color" content="#1b201d" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#111511" />
 
     <title>Bulk Delete &amp; Archive ChatGPT Chats — Chat Cleanup for Chrome</title>
     <meta
       name="description"
-      content="Chat Cleanup is a Chrome extension that lets you select and bulk delete or bulk archive multiple ChatGPT chats at once — with age filters, a review step, and pinned or Project chats protected."
+      content="Bulk delete or archive multiple ChatGPT chats at once. Filter by age, review the exact list, keep pinned and Project chats. Free Chrome extension."
     />
 
     <!-- Swap these absolute URLs when the custom domain goes live. -->
@@ -31,17 +31,17 @@
 
     <style>
       :root {
-        --ink: #141a17;
-        --ink-soft: #566159;
-        --paper: #f6f6f1;
-        --surface: #ffffff;
-        --line: #e3e1d7;
+        --ink: #eaeee9;
+        --ink-soft: #9fa9a2;
+        --paper: #111511;
+        --surface: #1a201b;
+        --surface-lift: #212a22;
+        --line: #2b332d;
         --charcoal: #1b201d;
         --lime: #c9f27b;
-        --lime-deep: #3d6a10;
         --mint: #7fd8b0;
         --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
-        color-scheme: light;
+        color-scheme: dark;
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
           "Segoe UI", Roboto, sans-serif;
       }
@@ -114,8 +114,11 @@
       .brand:hover img { transform: rotate(-8deg) scale(1.08); }
 
       .site-nav { margin-left: auto; display: flex; align-items: center; gap: 24px; font-size: 0.95rem; }
-      .site-nav a { color: var(--ink-soft); text-decoration: none; transition: color 0.2s; }
-      .site-nav a:hover { color: var(--ink); }
+      /* :not(.btn) — `.site-nav a` outweighs `.btn-lime`, so without it the button text took
+         the muted link colour and went lighter still on hover. */
+      .site-nav a:not(.btn) { color: var(--ink-soft); transition: color 0.2s; }
+      .site-nav a:not(.btn):hover { color: var(--ink); }
+      .site-nav a { text-decoration: none; }
       @media (max-width: 760px) { .site-nav .hide-sm { display: none; } }
 
       /* ---------- buttons ---------- */
@@ -136,12 +139,6 @@
         transition: transform 0.22s var(--ease), box-shadow 0.22s var(--ease),
           background 0.22s, border-color 0.22s, color 0.22s;
       }
-      .btn-primary {
-        background: linear-gradient(135deg, #2b322d, var(--charcoal));
-        color: #f4f4ee;
-        box-shadow: 0 10px 24px rgb(20 26 23 / 18%);
-      }
-      .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 16px 34px rgb(20 26 23 / 26%); }
       .btn-lime {
         background: linear-gradient(135deg, var(--lime), #a8e35c);
         color: #21300a;
@@ -149,12 +146,12 @@
       }
       .btn-lime:hover { transform: translateY(-2px); box-shadow: 0 18px 38px rgb(151 205 82 / 46%); }
       .btn-ghost { background: transparent; border-color: var(--line); color: var(--ink); }
-      .btn-ghost:hover { background: var(--surface); border-color: #c8c5b6; transform: translateY(-2px); }
+      .btn-ghost:hover { background: var(--surface); border-color: #4b564d; transform: translateY(-2px); }
       .btn-sm { padding: 9px 17px; font-size: 0.92rem; }
       .btn .arrow { transition: transform 0.25s var(--ease); }
       .btn:hover .arrow { transform: translateX(4px); }
 
-      :where(a, button, summary):focus-visible { outline: 2px solid var(--lime-deep); outline-offset: 3px; }
+      :where(a, button, summary):focus-visible { outline: 2px solid var(--lime); outline-offset: 3px; }
 
       /* ---------- glow backdrop ---------- */
 
@@ -163,11 +160,11 @@
       .glow::after { content: ""; position: absolute; border-radius: 50%; filter: blur(80px); }
       .glow::before {
         width: 640px; height: 520px; top: -240px; left: -140px;
-        background: radial-gradient(circle, rgb(201 242 123 / 70%), transparent 70%);
+        background: radial-gradient(circle, rgb(201 242 123 / 30%), transparent 70%);
       }
       .glow::after {
         width: 580px; height: 480px; top: -180px; right: -160px;
-        background: radial-gradient(circle, rgb(127 216 176 / 45%), transparent 70%);
+        background: radial-gradient(circle, rgb(127 216 176 / 20%), transparent 70%);
       }
       .hero .wrap { position: relative; z-index: 1; }
 
@@ -196,8 +193,7 @@
         border: 1px solid #333a35;
         background: #141815;
         overflow: hidden;
-        box-shadow: 0 2px 4px rgb(20 26 23 / 10%), 0 30px 60px -20px rgb(20 26 23 / 45%),
-          0 60px 130px -50px rgb(61 106 16 / 45%);
+        box-shadow: 0 30px 60px -20px rgb(0 0 0 / 55%), 0 60px 140px -50px rgb(61 106 16 / 75%);
       }
       .browser-bar {
         display: flex;
@@ -262,11 +258,15 @@
       }
       .card:hover {
         transform: translateY(-4px);
-        border-color: #cdd6c1;
-        box-shadow: 0 18px 40px -22px rgb(20 26 23 / 45%);
+        border-color: rgb(201 242 123 / 32%);
+        background: var(--surface-lift);
+        box-shadow: 0 22px 44px -26px rgb(0 0 0 / 70%);
       }
       .card p { color: var(--ink-soft); font-size: 0.96rem; }
-      .card-win { border-color: #bfdd94; background: linear-gradient(160deg, #f3fce4, #ffffff 65%); }
+      .card-win {
+        border-color: rgb(201 242 123 / 30%);
+        background: linear-gradient(160deg, rgb(201 242 123 / 12%), transparent 62%), var(--surface);
+      }
       .card-win h3::after {
         content: "";
         display: block;
@@ -283,9 +283,7 @@
           radial-gradient(70% 60% at 85% 0%, rgb(61 106 16 / 50%), transparent 62%),
           radial-gradient(60% 55% at 0% 100%, rgb(127 216 176 / 16%), transparent 62%),
           var(--charcoal);
-        color: #eef1ed;
       }
-      .band .lede { color: #a9b3ac; }
 
       .steps { display: grid; gap: clamp(48px, 6vw, 76px); margin-top: clamp(26px, 3vw, 38px); }
       .step { display: grid; gap: clamp(26px, 4vw, 52px); align-items: start; grid-template-columns: 1fr; }
@@ -301,24 +299,25 @@
         .step-text { position: sticky; top: 104px; }
       }
       .step-text h3 { font-size: clamp(1.35rem, 2.4vw, 1.65rem); }
-      .step-text p { color: #a9b3ac; }
+      .step-text p { color: var(--ink-soft); }
 
       /* ---------- features ---------- */
 
-      .features {
-        display: grid;
-        gap: 16px;
-        grid-template-columns: repeat(auto-fit, minmax(255px, 1fr));
-        margin-top: 38px;
-      }
+      /* Fixed tracks, not auto-fit: auto-fit packed four tiles onto a wide first row and
+         stranded the last two. */
+      .features { display: grid; gap: 16px; grid-template-columns: 1fr; margin-top: 38px; }
+      @media (min-width: 620px) { .features { grid-template-columns: 1fr 1fr; } }
+      @media (min-width: 960px) { .features { grid-template-columns: repeat(3, 1fr); } }
       .features .card h3 { display: flex; align-items: center; gap: 10px; }
       .features .card h3::before {
         content: "";
-        width: 8px; height: 8px;
+        width: 9px; height: 9px;
         border-radius: 3px;
         background: linear-gradient(135deg, var(--lime), var(--mint));
         flex: none;
+        transition: transform 0.35s var(--ease);
       }
+      .features .card:hover h3::before { transform: rotate(45deg) scale(1.25); }
 
       /* ---------- privacy card ---------- */
 
@@ -326,12 +325,11 @@
         padding: clamp(30px, 5vw, 58px);
         border-radius: 26px;
         background:
-          radial-gradient(65% 75% at 100% 0%, rgb(61 106 16 / 55%), transparent 60%),
-          var(--charcoal);
-        color: #eef1ed;
-        box-shadow: 0 40px 90px -46px rgb(20 26 23 / 70%);
+          radial-gradient(65% 75% at 100% 0%, rgb(61 106 16 / 50%), transparent 60%),
+          var(--surface);
+        border: 1px solid var(--line);
+        box-shadow: 0 40px 90px -46px rgb(0 0 0 / 75%);
       }
-      .privacy-card .lede { color: #a9b3ac; }
       .checks { display: grid; gap: 14px; margin: 30px 0 0; padding: 0; list-style: none; }
       @media (min-width: 760px) { .checks { grid-template-columns: 1fr 1fr; gap: 14px 36px; } }
       .checks li {
@@ -339,12 +337,12 @@
         grid-template-columns: 20px 1fr;
         gap: 12px;
         padding-top: 14px;
-        border-top: 1px solid #333b36;
-        color: #c3ccc6;
+        border-top: 1px solid var(--line);
+        color: var(--ink-soft);
         font-size: 0.95rem;
       }
       .checks svg { width: 18px; height: 18px; stroke: var(--lime); fill: none; stroke-width: 2.6; }
-      .checks code { color: #dfe6e0; }
+      .checks code { color: var(--ink); }
 
       /* ---------- faq ---------- */
 
@@ -358,7 +356,7 @@
         position: relative;
         transition: color 0.2s;
       }
-      .faq summary:hover { color: var(--lime-deep); }
+      .faq summary:hover { color: var(--lime); }
       .faq summary::-webkit-details-marker { display: none; }
       .faq summary::after {
         content: "";
@@ -384,11 +382,13 @@
         display: grid;
         gap: 16px;
         justify-items: center;
-        background: linear-gradient(140deg, #dcf7a8, #f5fce8 55%, #e4f7ef);
-        border: 1px solid #c7e197;
-        box-shadow: 0 30px 70px -44px rgb(61 106 16 / 70%);
+        background:
+          radial-gradient(75% 95% at 50% 0%, rgb(61 106 16 / 60%), transparent 66%),
+          var(--surface);
+        border: 1px solid rgb(201 242 123 / 26%);
+        box-shadow: 0 34px 80px -46px rgb(0 0 0 / 80%);
       }
-      .final .lede { max-width: 48ch; color: #4a5a42; }
+      .final .lede { max-width: 48ch; }
 
       /* ---------- footer ---------- */
 
@@ -418,8 +418,9 @@
           <a class="hide-sm" href="#how-it-works">How it works</a>
           <a class="hide-sm" href="#privacy">Privacy</a>
           <a class="hide-sm" href="#faq">FAQ</a>
+          <a class="hide-sm" href="blog/">Blog</a>
           <a
-            class="btn btn-ghost btn-sm"
+            class="btn btn-lime btn-sm"
             href="https://chromewebstore.google.com/detail/chat-cleanup-%E2%80%94-bulk-archi/ldaeofnbfjlljghcfflkalndgfkdeahi"
             target="_blank"
             rel="noopener"
@@ -437,18 +438,19 @@
           <div class="hero-grid">
             <h1 data-reveal>Bulk delete ChatGPT chats. Keep the ones that matter.</h1>
             <p class="lede" data-reveal style="--d: 80ms">
-              ChatGPT removes one chat, or all of them. Chat Cleanup adds everything in between:
-              multi-select, age filters, and a review step before anything goes.
+              ChatGPT clears your whole chat history, or one conversation at a time. Chat Cleanup
+              adds everything in between: multi-select, age filters, and a review step before
+              anything goes.
             </p>
             <div class="hero-actions" data-reveal style="--d: 160ms">
               <a
-                class="btn btn-primary"
+                class="btn btn-lime"
                 href="https://chromewebstore.google.com/detail/chat-cleanup-%E2%80%94-bulk-archi/ldaeofnbfjlljghcfflkalndgfkdeahi"
                 target="_blank"
                 rel="noopener"
                 >Add to Chrome <span class="arrow">↗</span></a
               >
-              <a class="btn btn-ghost" href="demo/">Try the live demo <span class="arrow">→</span></a>
+              <a class="btn btn-ghost" href="#how-it-works">See how it works <span class="arrow">→</span></a>
             </div>
           </div>
 
@@ -488,7 +490,7 @@
             </div>
             <div class="card card-win" data-reveal style="--d: 180ms">
               <h3>Chat Cleanup</h3>
-              <p>Pick a subset by age or by hand. Review it. Archive or delete it.</p>
+              <p>Pick a subset by age or by hand. Review it. Archive or delete it. Free, with no cap on batch size.</p>
             </div>
           </div>
         </div>
@@ -505,10 +507,11 @@
           <div class="steps">
             <div class="step">
               <div class="step-text" data-reveal>
-                <h3>Select</h3>
+                <h3>Select old chats</h3>
                 <p>
-                  Age presets for 30, 90, 180 and 365 days, Shift-click ranges, or plain
-                  hand-picking — across your whole history, Projects included.
+                  Age presets for old chats — 30, 90, 180 and 365 days — plus Select all,
+                  Shift-click ranges and plain hand-picking, across your whole chat history with
+                  Projects included.
                 </p>
                 <p>
                   Pinned chats, Project chats and anything you mark protected are skipped. Nothing
@@ -526,7 +529,7 @@
 
             <div class="step step-flip">
               <div class="step-text" data-reveal>
-                <h3>Review</h3>
+                <h3>Review the exact list</h3>
                 <p>
                   Every title and the exact count, before anything is removed. Permanent deletion
                   says so plainly and needs a second confirmation.
@@ -544,7 +547,7 @@
 
             <div class="step">
               <div class="step-text" data-reveal>
-                <h3>Run it</h3>
+                <h3>Archive or delete</h3>
                 <p>
                   Archive runs one chat at a time, delete at most two. Every result is checked
                   against ChatGPT, rate limits stop the batch cleanly, failures stay visible.
@@ -567,7 +570,7 @@
       <section id="features">
         <div class="wrap">
           <div class="section-head" data-reveal>
-            <h2>Built for a history that got out of hand</h2>
+            <h2>Built for a ChatGPT chat history that got out of hand</h2>
           </div>
 
           <div class="features">
@@ -575,23 +578,23 @@
               <h3>Bulk delete</h3>
               <p>Remove a chosen subset permanently, after a confirmation that names every chat in it.</p>
             </div>
-            <div class="card" data-reveal style="--d: 70ms">
+            <div class="card" data-reveal style="--d: 80ms">
               <h3>Bulk archive</h3>
               <p>Clear the sidebar without losing anything. Archived chats stay restorable.</p>
             </div>
-            <div class="card" data-reveal style="--d: 140ms">
+            <div class="card" data-reveal style="--d: 160ms">
               <h3>Age filters</h3>
               <p>One click for everything older than 30, 90, 180 or 365 days.</p>
             </div>
-            <div class="card" data-reveal>
+            <div class="card" data-reveal style="--d: 80ms">
               <h3>Protected by default</h3>
               <p>Pinned chats, Project chats and your own marked chats stay out of bulk selection.</p>
             </div>
-            <div class="card" data-reveal style="--d: 70ms">
+            <div class="card" data-reveal style="--d: 160ms">
               <h3>Shift-click ranges</h3>
               <p>Select a run of conversations the way you would in a file manager.</p>
             </div>
-            <div class="card" data-reveal style="--d: 140ms">
+            <div class="card" data-reveal style="--d: 240ms">
               <h3>Resumable batches</h3>
               <p>Interrupted cleanups survive a reload, and every result is verified.</p>
             </div>
@@ -639,7 +642,7 @@
             </ul>
 
             <p style="margin-top: 30px">
-              <a class="btn btn-ghost" href="privacy/" style="color: #eef1ed; border-color: #3a423c">Read the full privacy policy</a>
+              <a class="btn btn-ghost" href="privacy/">Read the full privacy policy</a>
             </p>
           </div>
         </div>
@@ -723,8 +726,9 @@
                 <p>
                   It depends entirely on the extension — anything that can read your chat list
                   could in principle send it somewhere. Chat Cleanup has no backend, no account, no
-                  analytics and no third-party requests, asks for only two permissions, and its
-                  source is public so the claim can be checked rather than trusted.
+                  analytics and no third-party requests. It asks for exactly two permissions,
+                  storage and access to chatgpt.com, which Chrome shows you before you install and
+                  which you can re-check any time on the extension's page.
                 </p>
               </div>
             </details>
@@ -752,6 +756,60 @@
             </details>
 
             <details>
+              <summary>Does deleting old chats make ChatGPT faster?</summary>
+              <div class="answer">
+                <p>
+                  No, and it is worth being clear about that. Response speed depends on the length
+                  of the conversation you currently have open, not on how many old chats sit in
+                  your sidebar — starting a fresh chat is what helps there.
+                </p>
+                <p>
+                  Cleaning up makes the sidebar usable and your history easier to search. It does
+                  not make ChatGPT think faster.
+                </p>
+              </div>
+            </details>
+
+            <details>
+              <summary>Can I export my ChatGPT chats before deleting them?</summary>
+              <div class="answer">
+                <p>
+                  Yes, and it is worth doing before a large delete. In ChatGPT open Settings → Data
+                  controls → Export data; a download link arrives by email.
+                </p>
+                <p>
+                  Chat Cleanup does not export anything itself. It only archives and deletes, which
+                  is why archiving is the safer choice when you are unsure.
+                </p>
+              </div>
+            </details>
+
+            <details>
+              <summary>Is there a limit on how many chats I can delete at once?</summary>
+              <div class="answer">
+                <p>
+                  No. Chat Cleanup is free and puts no cap on how many conversations you select,
+                  unlike free tiers that limit you to a handful per batch.
+                </p>
+                <p>
+                  Large batches simply run at a deliberate pace: archive processes one conversation
+                  at a time and delete at most two, so ChatGPT's rate limits are respected and a
+                  stopped batch can be resumed.
+                </p>
+              </div>
+            </details>
+
+            <details>
+              <summary>Which browser does Chat Cleanup work in?</summary>
+              <div class="answer">
+                <p>
+                  It is built and tested for Google Chrome and is distributed through the Chrome
+                  Web Store. You need to be signed in to ChatGPT in the same browser.
+                </p>
+              </div>
+            </details>
+
+            <details>
               <summary>Is Chat Cleanup free, and is it affiliated with OpenAI?</summary>
               <div class="answer">
                 <p>
@@ -770,8 +828,7 @@
           <div class="final" data-reveal>
             <h2>Clean a year of history in a few minutes</h2>
             <p class="lede">
-              Install the free extension from the Chrome Web Store, or try the real panel against
-              a fictional history first.
+              Free, and nothing is removed until you have seen the exact list and confirmed it.
             </p>
             <div class="hero-actions">
               <a
@@ -781,7 +838,6 @@
                 rel="noopener"
                 >Add to Chrome <span class="arrow">↗</span></a
               >
-              <a class="btn btn-ghost" href="demo/">Try the live demo <span class="arrow">→</span></a>
             </div>
           </div>
         </div>
@@ -790,13 +846,12 @@
 
     <footer class="site-footer">
       <div class="wrap">
-        <span>© 2026 Chat Cleanup</span>
+        <span>Chat Cleanup</span>
         <nav aria-label="Footer">
           <a href="https://chromewebstore.google.com/detail/chat-cleanup-%E2%80%94-bulk-archi/ldaeofnbfjlljghcfflkalndgfkdeahi">Chrome Web Store</a>
-          <a href="demo/">Live demo</a>
+          <a href="blog/">Blog</a>
           <a href="privacy/">Privacy policy</a>
-          <a href="https://github.com/maksfilius/chat-history-cleanup">Source</a>
-          <a href="https://github.com/maksfilius/chat-history-cleanup/issues">Support</a>
+          <a href="mailto:chatcleanup.support@gmail.com">Support</a>
         </nav>
         <p class="disclaimer">
           Chat Cleanup is an independent Chrome extension, not affiliated with, endorsed by, or
@@ -908,7 +963,7 @@
                 "name": "Is a ChatGPT bulk delete extension safe to install?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "It depends on the extension, because anything that reads your chat list could in principle transmit it. Chat Cleanup has no backend, account, analytics or third-party requests, asks only for storage and access to chatgpt.com, and its source is public so the claim can be verified."
+                  "text": "It depends on the extension, because anything that reads your chat list could in principle transmit it. Chat Cleanup has no backend, account, analytics or third-party requests, and asks for exactly two permissions: storage and access to chatgpt.com. Chrome shows that list before you install."
                 }
               },
               {
@@ -925,6 +980,38 @@
                 "acceptedAnswer": {
                   "@type": "Answer",
                   "text": "The unfinished batch is stored locally in your Chrome profile so it can be resumed or discarded when you reopen ChatGPT. A request with an uncertain outcome is reconciled by reading its result before it can be sent again."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Does deleting old chats make ChatGPT faster?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. Response speed depends on the length of the conversation you currently have open, not on how many old chats sit in the sidebar; starting a fresh chat is what helps there. Cleaning up makes the sidebar usable and the history easier to search, but it does not make ChatGPT think faster."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Can I export my ChatGPT chats before deleting them?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes, and it is worth doing before a large delete. In ChatGPT open Settings, Data controls, Export data, and a download link arrives by email. Chat Cleanup does not export anything itself; it only archives and deletes."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Is there a limit on how many ChatGPT chats I can delete at once?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. Chat Cleanup is free and puts no cap on how many conversations you select. Large batches run at a deliberate pace: archive processes one conversation at a time and delete at most two, so ChatGPT's rate limits are respected and a stopped batch can be resumed."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Which browser does Chat Cleanup work in?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Chat Cleanup is built and tested for Google Chrome and is distributed through the Chrome Web Store. You need to be signed in to ChatGPT in the same browser."
                 }
               },
               {

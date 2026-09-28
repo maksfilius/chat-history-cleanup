@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#111511" />
+
+    <title>How to Delete Old ChatGPT Chats but Keep the Important Ones</title>
+    <meta
+      name="description"
+      content="ChatGPT deletes one chat or all of them. Here is how to clear out old conversations while your pinned, Project and renamed chats survive the cleanup."
+    />
+    <link
+      rel="canonical"
+      href="https://maksfilius.github.io/chat-history-cleanup/blog/delete-old-chatgpt-chats-keep-important-ones/"
+    />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Chat Cleanup" />
+    <meta property="og:title" content="How to delete old ChatGPT chats but keep the important ones" />
+    <meta
+      property="og:description"
+      content="ChatGPT deletes one chat or all of them. Here is how to clear out old conversations while your pinned, Project and renamed chats survive."
+    />
+    <meta
+      property="og:url"
+      content="https://maksfilius.github.io/chat-history-cleanup/blog/delete-old-chatgpt-chats-keep-important-ones/"
+    />
+    <meta property="og:image" content="https://maksfilius.github.io/chat-history-cleanup/assets/shot-select.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <link rel="icon" type="image/svg+xml" href="../../assets/logo.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="../../assets/icon32.png" />
+    <link rel="stylesheet" href="../../article.css" />
+  </head>
+
+  <body>
+    <main>
+      <header>
+        <a class="brand" href="../../"
+          ><img class="mark" src="../../assets/logo.svg" alt="" width="30" height="30" /> Chat
+          Cleanup</a
+        >
+        <h1>How to delete old ChatGPT chats but keep the important ones</h1>
+        <p class="updated">28 September 2026 · 6 min read</p>
+        <div class="summary">
+          <p>
+            <strong>Short answer:</strong> ChatGPT has no way to select some chats and delete only
+            those. So the job is not really "delete the old ones" — it is "protect the keepers
+            first, then clear everything else". Pin or move the chats you want to survive, export a
+            backup, then delete or archive the rest by age.
+          </p>
+        </div>
+      </header>
+
+      <section>
+        <h2>Why ChatGPT makes this awkward</h2>
+        <p>
+          ChatGPT gives you exactly two ways to remove a conversation. You can open a chat's menu
+          in the sidebar and delete that one chat, or you can open settings, go to Data controls,
+          and delete everything. There is no checkbox, no multi-select, no "delete everything older
+          than six months".
+        </p>
+        <p>
+          For a sidebar with two hundred conversations in it, neither option is what you want. One
+          at a time is twenty minutes of clicking. Delete all takes the eight chats you actually
+          cared about along with the other hundred and ninety-two.
+        </p>
+        <p>
+          That framing is the whole trick. Stop thinking of it as "how do I delete the old ones"
+          and start thinking of it as "how do I make the keepers unmistakable before I clear the
+          rest".
+        </p>
+      </section>
+
+      <section>
+        <h2>Step 1: decide what "important" means, in ChatGPT's own terms</h2>
+        <p>
+          Before you remove anything, mark the conversations that should survive. ChatGPT has three
+          signals for this, and they are the same signals any cleanup tool can respect:
+        </p>
+        <ul>
+          <li>
+            <strong>Pin</strong> the handful of chats you return to constantly. Pinned chats sit at
+            the top of the sidebar and are easy to treat as off-limits.
+          </li>
+          <li>
+            <strong>Projects</strong> for anything ongoing. A Project groups related conversations
+            and gives them a home outside the flat history list.
+          </li>
+          <li>
+            <strong>Rename</strong> the rest of the keepers. ChatGPT titles chats from your first
+            message, which produces a sidebar full of things like "Quick question" and "Test". A
+            renamed chat is one you can still find in six months; an auto-titled one is one you
+            will delete by accident.
+          </li>
+        </ul>
+        <p>
+          This step takes ten minutes and it is the one people skip. Everything after it is
+          mechanical.
+        </p>
+      </section>
+
+      <section>
+        <h2>Step 2: export a backup first</h2>
+        <p>
+          In ChatGPT, open settings, go to Data controls, and choose Export data. You get an email
+          with a download link containing your conversations.
+        </p>
+        <p>
+          Do this even if you are confident. Deleting a ChatGPT conversation is permanent — it is
+          removed from your account immediately, and OpenAI's support cannot restore it for you.
+          The thirty-day window you may have read about is OpenAI's own retention schedule for
+          removing the data from their systems, not a recycle bin you can open.
+        </p>
+        <p>
+          The export is the only thing that makes a large cleanup reversible in the sense that
+          matters: you still have the text.
+        </p>
+      </section>
+
+      <section>
+        <h2>Step 3: pick a method</h2>
+
+        <h3>Option A — archive everything, then bring back what you miss</h3>
+        <p>
+          ChatGPT's settings include an "archive all chats" action. Archiving is not deleting: the
+          conversations leave your sidebar but stay in your account, and you can restore any of
+          them later from the archived list.
+        </p>
+        <p>
+          This is the safest no-tools approach and it empties the sidebar in one click. The downside
+          is that it is indiscriminate — everything goes, including this morning's chat — and
+          digging a specific conversation back out of a few hundred archived ones is its own chore.
+          It works best if you genuinely want a clean slate and treat the archive as cold storage.
+        </p>
+
+        <h3>Option B — delete one at a time</h3>
+        <p>
+          Perfectly reasonable under about twenty conversations. Open each chat's menu, delete,
+          confirm. Past that it becomes the twenty-minute clicking exercise, and the risk shifts
+          from "this is slow" to "I stopped paying attention and deleted the wrong one".
+        </p>
+
+        <h3>Option C — clear by age, with the keepers protected</h3>
+        <p>
+          This is where a browser extension earns its place, and it is what
+          <a href="../../">Chat Cleanup</a> was built for: pick everything older than 30, 90, 180
+          or 365 days, see the exact list of titles, then archive or delete that batch. Pinned
+          chats, Project chats and anything you have marked protected are skipped by the age
+          filters and by Select all, so the keepers from step 1 stay put without you thinking about
+          it.
+        </p>
+        <p>
+          Whatever tool you choose, insist on two things: it shows you the exact list before it
+          acts, and it excludes your protected chats by default rather than asking you to deselect
+          them one by one. An extension that reads your chat list is worth a minute of scrutiny —
+          see <a href="../is-a-chatgpt-bulk-delete-extension-safe/">how to check one</a>.
+        </p>
+      </section>
+
+      <section>
+        <h2>What "old" should mean for you</h2>
+        <p>
+          Age is a crude filter, which is exactly why it works: it needs no judgement about
+          content. Pick the threshold that matches how you use ChatGPT.
+        </p>
+        <ul>
+          <li>
+            <strong>Older than 30 days</strong> — heavy daily use, mostly throwaway questions. If
+            you have not looked at it in a month, you will not.
+          </li>
+          <li>
+            <strong>Older than 90 days</strong> — the default for most people. Long enough to cover
+            a project cycle, short enough to actually shrink the list.
+          </li>
+          <li>
+            <strong>Older than 180 or 365 days</strong> — conservative. Good for a first pass when
+            you are nervous, or when your history stretches back years and you want to start at the
+            far end.
+          </li>
+        </ul>
+        <p>
+          A reasonable first run: archive everything older than a year, live with it for a week,
+          then come back and do 90 days. You will discover very quickly that you never went looking
+          for any of it.
+        </p>
+      </section>
+
+      <section>
+        <h2>What can go wrong</h2>
+        <ul>
+          <li>
+            <strong>Permanent means permanent.</strong> If you are not certain, archive. You can
+            always delete an archived chat later; you cannot undelete anything.
+          </li>
+          <li>
+            <strong>Big batches hit rate limits.</strong> ChatGPT pushes back when a few hundred
+            removals arrive at once. A tool that fires everything in parallel will produce a pile
+            of silent failures; one that paces itself and reports what actually happened will not.
+          </li>
+          <li>
+            <strong>Interrupted runs.</strong> Closing the tab halfway through a large batch should
+            leave you able to resume or discard, not guessing which half went through.
+          </li>
+          <li>
+            <strong>Unknown protection status.</strong> If a tool cannot tell whether a chat is
+            pinned or belongs to a Project, the safe behaviour is to skip it, not to assume it is
+            fair game.
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>The short version</h2>
+        <ol>
+          <li>Pin the essentials, move ongoing work into Projects, rename the rest of the keepers.</li>
+          <li>Export your data from ChatGPT's settings and wait for the email.</li>
+          <li>Archive or delete by age — start at a year, work inwards.</li>
+          <li>Review the exact list before confirming anything permanent.</li>
+        </ol>
+        <p>
+          Ten minutes of preparation turns a scary irreversible operation into a boring one. That
+          is the entire point.
+        </p>
+      </section>
+
+      <div class="cta">
+        <h2>Clean up by age, keep the rest</h2>
+        <p>
+          Chat Cleanup adds multi-select, 30/90/180/365-day filters and a review step to
+          chatgpt.com. Pinned and Project chats are protected by default. Free, no account, no
+          backend.
+        </p>
+        <a
+          class="btn"
+          href="https://chromewebstore.google.com/detail/chat-cleanup-%E2%80%94-bulk-archi/ldaeofnbfjlljghcfflkalndgfkdeahi"
+          target="_blank"
+          rel="noopener"
+          >Add to Chrome ↗</a
+        >
+      </div>
+
+      <footer class="doc-footer">
+        <nav>
+          <a href="../">All posts</a>
+          <a href="../../">Chat Cleanup</a>
+          <a href="../../privacy/">Privacy policy</a>
+        </nav>
+        <p>
+          Chat Cleanup is an independent Chrome extension, not affiliated with, endorsed by, or
+          sponsored by OpenAI. ChatGPT is a trademark of OpenAI.
+        </p>
+      </footer>
+    </main>
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "BlogPosting",
+            "headline": "How to delete old ChatGPT chats but keep the important ones",
+            "description": "ChatGPT deletes one chat or all of them. Here is how to clear out old conversations while your pinned, Project and renamed chats survive the cleanup.",
+            "datePublished": "2026-09-28",
+            "dateModified": "2026-09-28",
+            "inLanguage": "en",
+            "mainEntityOfPage": "https://maksfilius.github.io/chat-history-cleanup/blog/delete-old-chatgpt-chats-keep-important-ones/",
+            "author": { "@type": "Organization", "name": "Chat Cleanup" },
+            "publisher": { "@type": "Organization", "name": "Chat Cleanup" }
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "Chat Cleanup",
+                "item": "https://maksfilius.github.io/chat-history-cleanup/"
+              },
+              {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "Blog",
+                "item": "https://maksfilius.github.io/chat-history-cleanup/blog/"
+              },
+              {
+                "@type": "ListItem",
+                "position": 3,
+                "name": "How to delete old ChatGPT chats but keep the important ones"
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+  </body>
+</html>
