@@ -239,7 +239,14 @@ operations. `verify()` is written this way.
 only `x-build`, `x-content-type-options`, `x-oai-is-update`, `x-oai-request-id`), so a limit can
 only be detected by catching a 429 — there is no budget to read in advance.
 
-**But sustained use across a development session did trip it.** ChatGPT showed the account:
+**The limit reacts to bursts, not only to sustained use `VERIFIED 2026-10-01`.** On a limited
+account, three list pages requested at once all returned 429 while a single request before and
+after them returned 200. Loading the inventory is such a burst — a page per 28 chats, the
+project list, then a query per project — so `listAll` retries a transient rejection with
+backoff (`retryRead`). Before that, one rejected page threw the whole load away and the panel
+told the user to wait minutes, when half a second was enough.
+
+**Sustained use across a development session also trips it.** ChatGPT showed the account:
 
 > "Du stellst zu viele Anfragen in kurzer Zeit. Der Zugriff auf deine Unterhaltungen wurde
 > vorübergehend eingeschränkt, um deine Daten zu schützen."

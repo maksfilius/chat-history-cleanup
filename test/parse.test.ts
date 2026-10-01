@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { parseConversationHref } from '../src/chatgpt/selectors.ts';
-import { listAll, listProjects, mapApiItem } from '../src/chatgpt/api.ts';
+import { forgetToken, listAll, listProjects, mapApiItem } from '../src/chatgpt/api.ts';
 import { daysSince, formatAge } from '../src/cleanup/age.ts';
 import { chatId } from './fixtures.ts';
 
@@ -227,3 +227,29 @@ test('a project that cannot be read makes the inventory incomplete and is named'
 function json(body: unknown) {
   return new Response(JSON.stringify(body), { status: 200 });
 }
+
+test('a rate-limited page is retried instead of failing the whole inventory', async () => {
+  // ChatGPT's limiter rejects bursts while still serving single requests, and loading the
+  // inventory is a burst. One 429 used to throw the entire load away.
+  const items = (from: number, n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      id: chatId(from + i), title: 't', create_time: null, update_time: null,
+    }));
+  let rejections = 0;
+  globalThis.fetch = (async (url: string) => {
+    const u = String(url);
+    if (u.includes('/api/auth/session')) {
+      return json({ accessToken: 'x'.repeat(30), account: { id: 'account-1' } });
+    }
+    if (u.includes('/gizmos/snorlax/sidebar')) return json({ items: [] });
+    if (rejections++ < 1) return new Response(JSON.stringify({}), { status: 429 });
+    const offset = Number(new URL(u, 'https://chatgpt.com').searchParams.get('offset'));
+    return json({ items: offset ? [] : items(0, 3), total: 3, limit: 28, offset });
+  }) as never;
+  forgetToken();
+
+  const inv = await listAll();
+  assert.equal(inv.conversations.length, 3);
+  assert.equal(inv.complete, true);
+  assert.ok(rejections > 1, 'the rejected page must have been asked for again');
+});

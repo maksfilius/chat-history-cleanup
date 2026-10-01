@@ -363,6 +363,33 @@ export interface Inventory {
  * The whole account: the flat history plus every project's conversations, which the flat
  * listing omits entirely. ~1.2s per request, so report progress.
  */
+/**
+ * Retries one read past a transient rejection.
+ *
+ * Loading the inventory is a burst of reads — a page per 28 chats, the project list, then a
+ * query per project — and ChatGPT's limiter answers bursts with 429 while still serving single
+ * requests (measured 2026-10-01: three pages at once all 429, the next single request 200).
+ * One rejected page used to throw away the whole load and tell the user to wait minutes, when
+ * waiting half a second was enough.
+ *
+ * Reads only. Writes are retried by the queue, and nesting a second ladder inside that one is
+ * what made archiving cost ~40 s per conversation.
+ */
+const READ_RETRIES = 3;
+
+async function retryRead<T>(read: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await read();
+    } catch (err) {
+      const e = asApiError(err);
+      if (attempt >= READ_RETRIES || !e.transient) throw err;
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.max(e.retryAfterMs ?? 0, 500 * 2 ** attempt)));
+    }
+  }
+}
+
 export async function listAll(onProgress?: (loaded: number) => void): Promise<Inventory> {
   const { accountId } = await getAccountContext(true);
   const seen = new Map<string, Conversation>();
@@ -374,7 +401,7 @@ export async function listAll(onProgress?: (loaded: number) => void): Promise<In
   let reported = 0;
   let reachedFlatEnd = false;
   for (let offset = 0; offset < 20_000; offset += PAGE_LIMIT) {
-    const page = await listPage(offset, PAGE_LIMIT, accountId);
+    const page = await retryRead(() => listPage(offset, PAGE_LIMIT, accountId));
     reported = page.total;
     if (!page.items.length) {
       reachedFlatEnd = true;
@@ -410,10 +437,10 @@ export async function listAll(onProgress?: (loaded: number) => void): Promise<In
 
   // A project we cannot read is a hole in the inventory, never a silent omission.
   try {
-    const projects = await listProjects(PROJECTS_LIMIT, accountId);
+    const projects = await retryRead(() => listProjects(PROJECTS_LIMIT, accountId));
     for (const project of projects) {
       try {
-        for (const c of await listProjectConversations(project.id, accountId)) {
+        for (const c of await retryRead(() => listProjectConversations(project.id, accountId))) {
           if (unsafeIds.has(c.id)) continue;
           const prior = seen.get(c.id);
           if (prior && prior.projectId !== c.projectId) {

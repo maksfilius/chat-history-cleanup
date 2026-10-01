@@ -13,7 +13,7 @@ Use this checklist for version `0.2.0`. Keep these answers consistent with `list
 Expected SHA-256:
 
 ```text
-7831f0bad16b63355c0a286ddcfca75679ad9499aba328cf6e00bff881fe1222
+9bbb38cafe6601a3f2f6ce66520163ca3829fa7f46f5dba48ba047003d1e289b
 ```
 
 ## 2. Store listing
