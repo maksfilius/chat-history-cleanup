@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ApiError } from '../src/chatgpt/api.ts';
-import { MAX_ATTEMPTS, OperationQueue, backoffMs, settledOk } from '../src/queue/operationQueue.ts';
+import { MAX_ATTEMPTS, OperationQueue, backoffMs, settledOk, ARCHIVE_NOT_APPLIED } from '../src/queue/operationQueue.ts';
 import type { ConversationAdapter } from '../src/types/conversation.ts';
 import { chatId } from './fixtures.ts';
 import { isConversationId } from '../src/types/identifiers.ts';
@@ -45,7 +45,9 @@ test('a 2xx write that the detail endpoint does not confirm is NOT counted as su
   assert.equal(q.done, 0);
   assert.equal(q.failed.length, 1);
   assert.equal(adapter.calls.length, MAX_ATTEMPTS);
-  assert.match(q.failed[0].error!, /did not take effect/);
+  // The reason must point at ChatGPT, not read like our own failure: the user's only sensible
+  // response to "archive did not take effect" is to retry, and retrying cannot help here.
+  assert.equal(q.failed[0].error, ARCHIVE_NOT_APPLIED);
 });
 
 test('rate limit is retried with backoff, then succeeds', async () => {

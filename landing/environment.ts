@@ -1,6 +1,9 @@
 import type { Conversation, ConversationAdapter } from '../src/types/conversation.ts';
 import type { Inventory, VerifyResult } from '../src/chatgpt/api.ts';
 import { ApiError } from '../src/chatgpt/api.ts';
+// The panel classifies load failures by status; the demo substitutes this module wholesale,
+// so the error type and its coercion have to travel with it.
+export { ApiError, asApiError } from '../src/chatgpt/api.ts';
 import { isConversationId } from '../src/types/identifiers.ts';
 import { readKey, writeKey } from './storage.ts';
 

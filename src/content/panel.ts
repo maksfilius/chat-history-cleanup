@@ -1,5 +1,5 @@
 import {
-  apiAdapterFor, assertAccountContext, listAll, verify, type Inventory,
+  apiAdapterFor, asApiError, assertAccountContext, listAll, verify, type ApiError, type Inventory,
 } from '../chatgpt/api.ts';
 import { removeRow } from '../chatgpt/dom.ts';
 import { formatAge } from '../cleanup/age.ts';
@@ -8,7 +8,7 @@ import { protectionMap, protectionSummary } from '../cleanup/protections.ts';
 import { projectGroups, selectAll, selectRange } from '../cleanup/selection.ts';
 import { extensionAlive, onKeyChange, readKeyState, writeKey } from '../storage/local.ts';
 import { loadProtected, setProtected } from '../storage/protectedChats.ts';
-import { OperationQueue, type OpKind, type Operation, type QueueDeps } from '../queue/operationQueue.ts';
+import { OperationQueue, type OpKind, type Operation, type QueueDeps, ARCHIVE_NOT_APPLIED } from '../queue/operationQueue.ts';
 import {
   acquireLease, HEARTBEAT_MS, newOwnerId, releaseLease, renewLease, withExclusiveBatchLock,
 } from '../queue/lease.ts';
@@ -863,12 +863,36 @@ export function createUi(extraStyles = ''): HTMLElement {
       } catch (err) {
         total.textContent = '';
         warn.hidden = false;
-        warn.textContent = `Could not load conversations: ${err}. Are you signed in?`;
+        warn.textContent = loadFailure(asApiError(err));
       }
     })();
   }
 
   return host;
+}
+
+/**
+ * Why the chat list could not be loaded, in terms the reader can act on.
+ *
+ * This used to append "Are you signed in?" to every failure. A rate limit is the common one and
+ * has nothing to do with signing in, so the question sent people to check the one thing that was
+ * already fine.
+ */
+function loadFailure(e: ApiError): string {
+  if (e.status === 429) {
+    const wait = e.retryAfterMs
+      ? `about ${Math.max(1, Math.ceil(e.retryAfterMs / 60_000))} min`
+      : 'a few minutes';
+    return `ChatGPT is rate-limiting this account, so the chat list could not be loaded. ` +
+      `Wait ${wait}, then reopen Chat Cleanup. Nothing was changed.`;
+  }
+  if (e.status === 401 || e.status === 403) {
+    return 'Your ChatGPT session has ended. Reload the page, sign in, then reopen Chat Cleanup.';
+  }
+  if (e.status === 0) {
+    return 'Could not reach ChatGPT. Check your connection, then reopen Chat Cleanup.';
+  }
+  return `Could not load the chat list (HTTP ${e.status}). Reload the page and try again.`;
 }
 
 /**
@@ -1193,6 +1217,16 @@ function progressView(host: HTMLElement, kind: OpKind, total: number, onBack: ()
         }),
       );
       fails.hidden = failed.length === 0;
+      if (kind === 'archive' && failed.some((f) => f.error === ARCHIVE_NOT_APPLIED)) {
+        // Without this the row reads like our bug, and the obvious response is to retry.
+        const note = document.createElement('div');
+        note.style.color = '#ffb782';
+        note.textContent =
+          'Archiving is currently failing inside ChatGPT itself — it accepts the request and ' +
+          'leaves the chat where it was. ChatGPT\'s own Archive button behaves the same way, ' +
+          'so retrying will not help. Deleting is unaffected.';
+        el.append(note);
+      }
       foot.innerHTML = '<button class="cc-back">Back to list</button>';
       const back = foot.querySelector('.cc-back') as HTMLButtonElement;
       back.onclick = onBack;

@@ -334,10 +334,18 @@ export function settledOk(kind: OpKind, v: VerifyResult): boolean {
   return v.state === 'present' && v.archived === true;
 }
 
+/**
+ * ChatGPT accepts `is_archived: true`, echoes it back from the detail endpoint, and leaves the
+ * conversation in the active list. Its own Archive menu item fails the same way, so this is not
+ * something the extension can retry its way out of (observed 2026-10-01).
+ */
+export const ARCHIVE_NOT_APPLIED = 'ChatGPT accepted the request but did not archive it';
+
 function unconfirmed(kind: OpKind, v: VerifyResult): string {
   if (kind === 'archive' && v.state === 'deleted') return 'conversation was deleted; it was not archived';
   if (v.state === 'missing') return 'conversation not found';
   if (v.state === 'error') return `could not confirm (${v.code})`;
+  if (kind === 'archive' && v.state === 'present') return ARCHIVE_NOT_APPLIED;
   return `${kind} did not take effect`;
 }
 
