@@ -149,7 +149,7 @@ snippet, summary_metadata, sugar_item_id, sugar_item_visible
 | `id` | RELIABLE `VERIFIED` | UUID, identical in DOM and API |
 | `title` | RELIABLE `VERIFIED` | non-empty on all 8; untitled rule unproven |
 | `createdAt` / `updatedAt` | RELIABLE `VERIFIED` | ISO-8601 with `Z`; every age filter rests on `update_time` |
-| `archived` | READ-ONLY `VERIFIED` | `?is_archived=true` is the truthful listing; the detail field echoes writes that never landed — see Archive |
+| `archived` | RELIABLE `VERIFIED` | `is_archived` on the detail endpoint is immediate; `?is_archived=true` is a separate listing that trails writes by minutes — see Archive |
 | `projectId` | RELIABLE `VERIFIED` | `gizmo_id` prefixed `g-p-` = project. A plain `g-` gizmo is a custom GPT, **not** a project — do not protect on `gizmo_id != null` alone |
 | `isTemporary` | `PARTIAL` | `is_temporary_chat` present and `false` on all 8; positive case unseen |
 | `isPinned` | RELIABLE `VERIFIED` | a pinned chat carries **both** `pinned_time` (ISO) and `is_starred: true`; unpinned chats have the fields present with `null`. Field presence proves the server reported the state, so mapping yields `false`; missing fields yield `undefined` and fail safe |
@@ -159,53 +159,35 @@ Fail-safe rule encoded in `mapApiItem`: unknown stays `undefined`, never `false`
 
 ## Actions
 
-### Archive `BROKEN IN CHATGPT 2026-10-01`
-
-Archiving does not work, and not only for us. The write is accepted and then ignored: `200
-{ "success": true }`, the detail endpoint echoes `is_archived: true`, `update_time` is bumped —
-and the conversation stays in the active listing and never appears in the archived one.
-
-**ChatGPT's own Archive menu item fails identically.** With hooks installed on `fetch`,
-`XMLHttpRequest`, `WebSocket.prototype.send` and `sendBeacon`, clicking it emits exactly one
-outbound request and nothing else, on any channel, now or in the following minute:
+### Archive `VERIFIED — the write lands; every index trails it by minutes`
 
 ```text
-PATCH /backend-api/conversation/<id>  { "is_archived": true }
-```
-
-That is the same request the extension sends. So there is no second channel to find and no
-alternative route: a DOM adapter that clicks the menu would produce this identical request. The
-UI-driven archive built on 2026-10-01 was reverted for exactly that reason.
-
-Falsified along the way, in order: listing lag; wrong account or workspace (one `personal`
-account, and the native button sends the same `ChatGPT-Account-ID`); a changed endpoint or
-payload; missing headers (replaying the app's full set — `oai-did`, `originator`,
-`x-openai-web-frontend` — changes nothing); a missing `POST /backend-api/conversation/init`
-beforehand; a later revert; and the Work/Chat surface toggle.
-
-Delete is unaffected: `PATCH { "is_visible": false }` on the same endpoint still works, which
-rules out transport, auth and account context. The broken thing is the `is_archived` field.
-
-It is intermittent rather than dead: the account's archive count rose from 13 to 26 across the
-same session, so some writes land. Nothing in the extension influences which.
-
-Measured 2026-10-01 while it was failing: three conversations written in one pass were still
-absent from the archive 56 s later, on both listing pages, with the total unchanged. That is why
-an archive the read proves untouched is retried once and then reported — four attempts with
-backoff cost ~30 s per conversation and never succeed.
-
-**`GET detail -> is_archived` must never confirm an archive.** It returns `true` for a
-conversation that is not archived, which is what made the extension report success for work it
-had not done. `verify()` cross-checks `?is_archived=true`, validated in both directions on
-2026-10-01, and an unconfirmed archive now fails with `ARCHIVE_NOT_APPLIED`, whose wording
-points at ChatGPT so the user does not retry something retrying cannot fix.
-
-```text
+UI route:            row "…" menu -> Archive
 Request:             PATCH /backend-api/conversation/<id>  { "is_archived": true }
-Response:            200 { "success": true }   (means nothing)
-Success signal:      membership in /backend-api/conversations?...&is_archived=true
-Reversible:          yes, when it works at all
+Response:            200 { "success": true }
+Success signal:      GET detail -> is_archived: true (immediate and correct)
+Reversible:          yes — PATCH { "is_archived": false }
+Failure signal:      404 { detail: { code: "conversation_not_found" } }
 ```
+
+**Do not confirm an archive against the archived listing.** Measured 2026-10-01: three
+conversations written in one pass were absent from `?is_archived=true` 56 s later, on every
+page, with the total unchanged — and all three were present about twenty minutes on. A
+conversation archived that morning, which the user had checked by hand in ChatGPT's own
+Archived chats and not found, was likewise archived by evening and gone from the active list.
+
+The lag is not confined to our reads. The active listing trails too, and ChatGPT builds its
+sidebar from it, which is why an archived conversation reappears there after a reload and looks
+like the write was lost. It was not.
+
+This cost a full day. A verification that cross-checked the archived listing was built, shipped
+and reverted; a UI-driven archive adapter was built and reverted; ChatGPT's own Archive button
+was wrongly declared broken. All of it chased a propagation delay. The detail endpoint was
+telling the truth the whole time.
+
+What the delay does justify is saying so in the product: the archive success screen tells the
+user ChatGPT's sidebar and archive refresh with a delay, so the chats may still appear for a few
+minutes.
 
 ### Delete `VERIFIED`
 

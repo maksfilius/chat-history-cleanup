@@ -144,10 +144,6 @@ try {
         return json({ success: true });
       }
       if (url.includes('/gizmos/snorlax/sidebar')) return json({ items: [], cursor: null });
-      // The archive read-back is a listing query, not the detail endpoint.
-      if (url.includes('is_archived=true')) {
-        return json({ items: [...archivedIds].map((id) => ({ id })) });
-      }
       if (url.includes('/conversations?')) {
         const offset = Number(new URL(url).searchParams.get('offset'));
         return json({ total: reportedInventorySize ?? inventorySize, offset, limit: 28, items: offset ? [] : Array.from({ length: inventorySize }, (_, i) => i + 1).map(n => ({
