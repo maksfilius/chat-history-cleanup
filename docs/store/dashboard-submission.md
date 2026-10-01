@@ -1,19 +1,19 @@
 # Chrome Web Store dashboard submission
 
-Use this checklist for version `0.1.0`. Keep these answers consistent with `listing.md` and
+Use this checklist for version `0.2.0`. Keep these answers consistent with `listing.md` and
 `PRIVACY.md`.
 
 ## 1. Package
 
 - Add new item and upload `chat-cleanup.zip`.
-- Confirm name: `Chat Cleanup — Bulk Archive & Delete`.
-- Confirm version: `0.1.0`.
+- Confirm name: `Bulk Delete & Archive ChatGPT Chats — Chat Cleanup`.
+- Confirm version: `0.2.0`.
 - Confirm the package declares only `storage` and `https://chatgpt.com/*`.
 
 Expected SHA-256:
 
 ```text
-7e07c9e3044bfe27c02435653f5501b0878d14f4929ff3814170731b8032e07e
+bc49e4b64fdbbd7f73852ef5ac48799e81312260c05a99d26200200611eaed6d
 ```
 
 ## 2. Store listing

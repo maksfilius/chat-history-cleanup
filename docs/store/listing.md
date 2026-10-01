@@ -5,13 +5,13 @@ URL, and contact items in `RELEASE_READINESS.md` before submission.
 
 ## Name
 
-Chat Cleanup — Bulk Archive & Delete
+Bulk Delete & Archive ChatGPT Chats — Chat Cleanup
+
+Renamed in 0.2.0. Store search weighs the name most heavily and the previous one did not contain
+"ChatGPT" — the word people actually type. The brand moves to the tail because it earns no
+searches yet, and "Archive" stays because that query has far less competition than "delete".
 
 ## Short description (132 characters maximum)
-
-Select, review, archive, or delete multiple ChatGPT chats safely. Protect important conversations and resume interrupted batches.
-
-Recommended for the next extension package (128 characters):
 
 Bulk delete or archive ChatGPT chats safely. Filter by age, review every selection, protect important chats, and resume anytime.
 
@@ -121,3 +121,6 @@ substance.
 - Support email: `chatcleanup.support@gmail.com`.
 - Support URL: `https://github.com/maksfilius/chat-history-cleanup/issues`.
 - Version `0.1.0` was approved and publicly released on 2026-09-28.
+- Version `0.2.0` renames the listing, stops reporting unconfirmed archives as successful, and
+  explains that a failed archive is ChatGPT's fault rather than the extension's. Submitted after
+  a real-account regression run.
