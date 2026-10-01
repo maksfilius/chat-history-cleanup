@@ -464,12 +464,13 @@ export const apiAdapterFor = (accountId: string): ConversationAdapter => ({
 });
 
 /**
- * The listing trails writes by seconds, so a single miss does not mean the archive failed.
- * Kept short on purpose: every extra attempt is another request against a rate-limited API, and
- * these attempts are spent precisely when archiving is failing for everyone.
+ * The listing trails writes by a second or two, so one immediate miss does not mean the archive
+ * failed. Deliberately just one retry: the queue already retries the whole operation with
+ * backoff, and a second ladder nested inside this one made each archive take ~40 s.
+ * A fresh listing answers on the first read and sleeps not at all.
  */
-const ARCHIVE_CONFIRM_ATTEMPTS = 3;
-const ARCHIVE_CONFIRM_GAP_MS = 2_000;
+const ARCHIVE_CONFIRM_ATTEMPTS = 2;
+const ARCHIVE_CONFIRM_GAP_MS = 1_500;
 
 async function archivedListingHas(id: string, accountId?: string): Promise<boolean> {
   for (let attempt = 0; attempt < ARCHIVE_CONFIRM_ATTEMPTS; attempt++) {

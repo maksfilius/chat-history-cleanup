@@ -240,3 +240,34 @@ test('an unrelated verify error still retries, then fails just that conversation
   assert.equal(q.failed.length, 2);
   assert.match(q.failed[0].error!, /could not confirm \(500\)/);
 });
+
+test('an unconfirmed archive reads once per attempt, not twice', async () => {
+  // Each attempt used to verify, then reconcile with the identical read. On archive that read is
+  // a listing query behind a lagging index, and doubling it cost ~40 s per conversation.
+  let reads = 0;
+  const q = new OperationQueue(items(1), 'archive', {
+    adapter: fakeAdapter(),
+    verify: async () => { reads++; return { state: 'present', archived: false }; },
+    sleep: noSleep,
+  });
+  await q.run();
+  assert.equal(q.failed.length, 1);
+  assert.equal(reads, MAX_ATTEMPTS);
+});
+
+test('a write that threw is still reconciled before it is ever re-sent', async () => {
+  // The saving applies only to a read we just made. An uncertain write must still be read back,
+  // or the queue would replay a destructive request.
+  let reads = 0;
+  let thrown = false;
+  const q = new OperationQueue(items(1), 'remove', {
+    adapter: fakeAdapter({ [chatId('c0')]: async () => {
+      if (!thrown) { thrown = true; throw new ApiError(500); }
+    } }),
+    verify: async () => { reads++; return reads === 1 ? { state: 'present' } : { state: 'deleted' }; },
+    sleep: noSleep,
+  });
+  await q.run();
+  assert.equal(q.done, 1);
+  assert.ok(reads >= 2, 'the throwing write must be reconciled, then verified');
+});

@@ -270,8 +270,11 @@ export class OperationQueue {
       }
 
       // The write may or may not have landed and we cannot tell. Re-sending it is exactly the
-      // replay we are avoiding, so ask again rather than act again.
-      if (!(await this.reconcile(op))) return;
+      // replay we are avoiding, so ask again rather than act again — unless the read we just
+      // did already proves the conversation untouched. Re-reading to ask the identical question
+      // doubled the cost of every attempt, and this is the slowest read we make.
+      const provenUntouched = v.state === 'present' && (op.kind === 'remove' || v.archived !== true);
+      if (!provenUntouched && !(await this.reconcile(op))) return;
 
       if (op.attempts >= MAX_ATTEMPTS) {
         return this.settle(op, 'failed', unconfirmed(op.kind, v));
