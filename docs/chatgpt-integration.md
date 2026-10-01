@@ -186,8 +186,13 @@ beforehand; a later revert; and the Work/Chat surface toggle.
 Delete is unaffected: `PATCH { "is_visible": false }` on the same endpoint still works, which
 rules out transport, auth and account context. The broken thing is the `is_archived` field.
 
-It is intermittent rather than dead: the account's archive count did rise during the same
-session, so some writes land. Nothing in the extension influences which.
+It is intermittent rather than dead: the account's archive count rose from 13 to 26 across the
+same session, so some writes land. Nothing in the extension influences which.
+
+Measured 2026-10-01 while it was failing: three conversations written in one pass were still
+absent from the archive 56 s later, on both listing pages, with the total unchanged. That is why
+an archive the read proves untouched is retried once and then reported — four attempts with
+backoff cost ~30 s per conversation and never succeed.
 
 **`GET detail -> is_archived` must never confirm an archive.** It returns `true` for a
 conversation that is not archived, which is what made the extension report success for work it
