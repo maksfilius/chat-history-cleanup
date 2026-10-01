@@ -17,6 +17,13 @@ export const endpoints = {
     `/backend-api/conversations?offset=${offset}&limit=${limit}&order=updated`,
   conversation: (id: string) => `/backend-api/conversation/${requireConversationId(id)}`,
   /**
+   * Archived conversations. The only read that reports archive state truthfully: the detail
+   * endpoint echoes `is_archived` straight back from a write that never landed, so it confirms
+   * nothing (observed live 2026-10-01).
+   */
+  archivedList: (offset: number, limit: number) =>
+    `/backend-api/conversations?offset=${offset}&limit=${limit}&order=updated&is_archived=true`,
+  /**
    * Conversations inside a project are NOT returned by the flat list above — they live behind
    * their own cursor-paginated endpoint. Observed by watching what the project page itself
    * requests (2026-09-03). "snorlax" is ChatGPT's internal name for projects.
@@ -492,6 +499,26 @@ export const apiAdapterFor = (accountId: string): ConversationAdapter => ({
   remove: (id) => patch(id, { is_visible: false }, accountId),
 });
 
+/**
+ * The listing trails writes by a second or two, so one immediate miss does not mean the archive
+ * failed. Deliberately just one retry: the queue already retries the whole operation with
+ * backoff, and a second ladder nested inside this one made each archive take ~40 s.
+ * A fresh listing answers on the first read and sleeps not at all.
+ */
+const ARCHIVE_CONFIRM_ATTEMPTS = 2;
+const ARCHIVE_CONFIRM_GAP_MS = 1_500;
+
+async function archivedListingHas(id: string, accountId?: string): Promise<boolean> {
+  for (let attempt = 0; attempt < ARCHIVE_CONFIRM_ATTEMPTS; attempt++) {
+    if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, ARCHIVE_CONFIRM_GAP_MS));
+    const res = await call(endpoints.archivedList(0, PAGE_LIMIT), {}, false, accountId);
+    const body = await res.json().catch(() => null);
+    if (!Array.isArray(body?.items)) throw new ApiError(422, 'unreadable_archive_listing');
+    if ((body.items as ApiItem[]).some((it) => it?.id === id)) return true;
+  }
+  return false;
+}
+
 export type VerifyResult =
   | { state: 'present'; archived?: boolean }
   | { state: 'deleted' }
@@ -520,7 +547,13 @@ export async function verify(id: string, accountId?: string): Promise<VerifyResu
   if (body?.conversation_id !== id || typeof body?.is_archived !== 'boolean') {
     return { state: 'error', code: 422 };
   }
-  // Immediate and correct. The archived *listing* trails this by minutes, so confirming against
-  // it reports failure for work that did land — measured 2026-10-01, see docs.
-  return { state: 'present', archived: body.is_archived };
+  if (!body.is_archived) return { state: 'present', archived: false };
+  // `is_archived: true` here proves only that someone wrote the field. Confirm the conversation
+  // actually reached the archive before reporting success.
+  try {
+    return { state: 'present', archived: await archivedListingHas(id, accountId) };
+  } catch (err) {
+    const e = asApiError(err);
+    return { state: 'error', code: e.status, reason: e.code, retryAfterMs: e.retryAfterMs };
+  }
 }

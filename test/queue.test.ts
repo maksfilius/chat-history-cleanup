@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ApiError } from '../src/chatgpt/api.ts';
-import { MAX_ATTEMPTS, OperationQueue, backoffMs, settledOk } from '../src/queue/operationQueue.ts';
+import { MAX_ATTEMPTS, OperationQueue, backoffMs, settledOk, ARCHIVE_NOT_APPLIED, ARCHIVE_RETRY_LIMIT } from '../src/queue/operationQueue.ts';
 import type { ConversationAdapter } from '../src/types/conversation.ts';
 import { chatId } from './fixtures.ts';
 import { isConversationId } from '../src/types/identifiers.ts';
@@ -44,8 +44,10 @@ test('a 2xx write that the detail endpoint does not confirm is NOT counted as su
   await q.run();
   assert.equal(q.done, 0);
   assert.equal(q.failed.length, 1);
-  assert.equal(adapter.calls.length, MAX_ATTEMPTS);
-  assert.match(q.failed[0].error!, /did not take effect/);
+  assert.equal(adapter.calls.length, ARCHIVE_RETRY_LIMIT);
+  // The reason must point at ChatGPT, not read like our own failure: the user's only sensible
+  // response to "archive did not take effect" is to retry, and retrying cannot help here.
+  assert.equal(q.failed[0].error, ARCHIVE_NOT_APPLIED);
 });
 
 test('rate limit is retried with backoff, then succeeds', async () => {
@@ -239,7 +241,32 @@ test('an unrelated verify error still retries, then fails just that conversation
   assert.match(q.failed[0].error!, /could not confirm \(500\)/);
 });
 
+test('an archive ChatGPT keeps ignoring is given up on, not retried four times', async () => {
+  // Measured on a live account: the write returns 2xx and the conversation is still not in the
+  // archive a minute later. Four attempts with backoff cost ~30 s per chat and never succeed.
+  const adapter = fakeAdapter();
+  const q = new OperationQueue(items(1), 'archive', {
+    adapter,
+    verify: async () => ({ state: 'present', archived: false }),
+    sleep: noSleep,
+  });
+  await q.run();
+  assert.equal(q.failed.length, 1);
+  assert.equal(adapter.calls.length, ARCHIVE_RETRY_LIMIT);
+  assert.equal(q.failed[0].error, ARCHIVE_NOT_APPLIED);
+});
 
+test('deleting keeps the full retry ladder', async () => {
+  // The evidence is about is_archived only; an unconfirmed delete may still be transient.
+  const adapter = fakeAdapter();
+  const q = new OperationQueue(items(1), 'remove', {
+    adapter,
+    verify: async () => ({ state: 'present' }),
+    sleep: noSleep,
+  });
+  await q.run();
+  assert.equal(adapter.calls.length, MAX_ATTEMPTS);
+});
 
 test('an unconfirmed archive reads once per attempt, not twice', async () => {
   // Each attempt used to verify, then reconcile with the identical read. On archive that read is
@@ -252,7 +279,7 @@ test('an unconfirmed archive reads once per attempt, not twice', async () => {
   });
   await q.run();
   assert.equal(q.failed.length, 1);
-  assert.equal(reads, MAX_ATTEMPTS);
+  assert.equal(reads, ARCHIVE_RETRY_LIMIT);
 });
 
 test('a write that threw is still reconciled before it is ever re-sent', async () => {

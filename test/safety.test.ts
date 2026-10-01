@@ -133,11 +133,15 @@ test('malformed write response and mismatched read-back identity are not success
   const original = globalThis.fetch;
   const requests: { url: string; init?: RequestInit }[] = [];
   let response: unknown = { success: false };
+  let archived: { id: string }[] = [];
   globalThis.fetch = async (url, init) => {
     requests.push({ url: String(url), init });
     if (String(url).includes('/api/auth/session')) {
       return new Response(JSON.stringify(
         { accessToken: 'synthetic-token', account: { id: 'synthetic-account' } }));
+    }
+    if (String(url).includes('is_archived=true')) {
+      return new Response(JSON.stringify({ items: archived }));
     }
     return new Response(JSON.stringify(response));
   };
@@ -150,7 +154,12 @@ test('malformed write response and mismatched read-back identity are not success
     assert.deepEqual(await verify(a), { state: 'error', code: 422 });
     response = { is_archived: true };
     assert.deepEqual(await verify(a), { state: 'error', code: 422 });
+    // The whole archive bug in one assertion: ChatGPT echoes `is_archived: true` for a
+    // conversation that never reached the archive, so the detail field cannot confirm anything.
     response = { conversation_id: a, is_archived: true };
+    archived = [];
+    assert.deepEqual(await verify(a), { state: 'present', archived: false });
+    archived = [{ id: a }];
     assert.deepEqual(await verify(a), { state: 'present', archived: true });
     for (const request of requests) {
       assert.equal(new URL(request.url).origin, 'https://chatgpt.com');

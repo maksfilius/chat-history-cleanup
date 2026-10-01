@@ -8,7 +8,7 @@ import { protectionMap, protectionSummary } from '../cleanup/protections.ts';
 import { projectGroups, selectAll, selectRange } from '../cleanup/selection.ts';
 import { extensionAlive, onKeyChange, readKeyState, writeKey } from '../storage/local.ts';
 import { loadProtected, setProtected } from '../storage/protectedChats.ts';
-import { OperationQueue, type OpKind, type Operation, type QueueDeps } from '../queue/operationQueue.ts';
+import { OperationQueue, type OpKind, type Operation, type QueueDeps, ARCHIVE_NOT_APPLIED } from '../queue/operationQueue.ts';
 import {
   acquireLease, HEARTBEAT_MS, newOwnerId, releaseLease, renewLease, withExclusiveBatchLock,
 } from '../queue/lease.ts';
@@ -1218,6 +1218,16 @@ function progressView(host: HTMLElement, kind: OpKind, total: number, onBack: ()
         }),
       );
       fails.hidden = failed.length === 0;
+      if (kind === 'archive' && failed.some((f) => f.error === ARCHIVE_NOT_APPLIED)) {
+        // Without this the row reads like our bug, and the obvious response is to retry.
+        const note = document.createElement('div');
+        note.style.color = '#ffb782';
+        note.textContent =
+          'Archiving is currently failing inside ChatGPT itself — it accepts the request and ' +
+          'leaves the chat where it was. ChatGPT\'s own Archive button behaves the same way, ' +
+          'so retrying will not help. Deleting is unaffected.';
+        el.append(note);
+      }
       foot.innerHTML = '<button class="cc-back">Back to list</button>';
       const back = foot.querySelector('.cc-back') as HTMLButtonElement;
       back.onclick = onBack;
