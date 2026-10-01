@@ -253,3 +253,22 @@ test('a rate-limited page is retried instead of failing the whole inventory', as
   assert.equal(inv.complete, true);
   assert.ok(rejections > 1, 'the rejected page must have been asked for again');
 });
+
+test('a persistent rate limit is not hammered: one retry, then report', async () => {
+  // Four retries against an endpoint that is out of budget is four more rejections, and the
+  // account stays blocked longer. A burst collision clears on the first retry.
+  let attempts = 0;
+  globalThis.fetch = (async (url: string) => {
+    const u = String(url);
+    if (u.includes('/api/auth/session')) {
+      return json({ accessToken: 'x'.repeat(30), account: { id: 'account-1' } });
+    }
+    if (u.includes('/gizmos/snorlax/sidebar')) return json({ items: [] });
+    attempts++;
+    return new Response(JSON.stringify({}), { status: 429 });
+  }) as never;
+  forgetToken();
+
+  await assert.rejects(listAll(), /429/);
+  assert.equal(attempts, 2);
+});

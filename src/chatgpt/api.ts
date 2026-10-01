@@ -376,6 +376,14 @@ export interface Inventory {
  * what made archiving cost ~40 s per conversation.
  */
 const READ_RETRIES = 3;
+/**
+ * A 429 gets one retry, not four. Measured 2026-10-01: when the conversations endpoint is
+ * genuinely out of budget it rejects every request, so retrying four times turns each page into
+ * four rejections and digs the hole deeper. One retry still absorbs a burst collision, which
+ * clears in well under a second. The queue treats an account-wide limit the same way — it halts
+ * rather than letting workers retry into it.
+ */
+const RATE_LIMIT_RETRIES = 1;
 
 async function retryRead<T>(read: () => Promise<T>): Promise<T> {
   for (let attempt = 0; ; attempt++) {
@@ -383,9 +391,10 @@ async function retryRead<T>(read: () => Promise<T>): Promise<T> {
       return await read();
     } catch (err) {
       const e = asApiError(err);
-      if (attempt >= READ_RETRIES || !e.transient) throw err;
+      const budget = e.status === 429 ? RATE_LIMIT_RETRIES : READ_RETRIES;
+      if (attempt >= budget || !e.transient) throw err;
       await new Promise((resolve) =>
-        setTimeout(resolve, Math.max(e.retryAfterMs ?? 0, 500 * 2 ** attempt)));
+        setTimeout(resolve, Math.max(e.retryAfterMs ?? 0, e.status === 429 ? 1_500 : 500 * 2 ** attempt)));
     }
   }
 }

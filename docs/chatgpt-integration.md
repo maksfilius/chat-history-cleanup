@@ -239,7 +239,13 @@ operations. `verify()` is written this way.
 only `x-build`, `x-content-type-options`, `x-oai-is-update`, `x-oai-request-id`), so a limit can
 only be detected by catching a 429 — there is no budget to read in advance.
 
-**The limit reacts to bursts, not only to sustained use `VERIFIED 2026-10-01`.** On a limited
+**The limit is per endpoint `VERIFIED 2026-10-01`.** With the conversations endpoint out of
+budget, `/api/auth/session` and the project sidebar both answered 200 while
+`/backend-api/conversations` rejected the first request of a sequence. So a 429 there says
+nothing about the account as a whole, and retrying it hard only spends more of the budget that
+is already gone: it gets one retry, everything else transient gets three.
+
+**The limit also reacts to bursts `VERIFIED 2026-10-01`.** On a limited
 account, three list pages requested at once all returned 429 while a single request before and
 after them returned 200. Loading the inventory is such a burst — a page per 28 chats, the
 project list, then a query per project — so `listAll` retries a transient rejection with
