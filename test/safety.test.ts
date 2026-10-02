@@ -149,7 +149,9 @@ test('malformed write response and mismatched read-back identity are not success
   try {
     await assert.rejects(apiAdapter.remove(a), /unconfirmed_write_response/);
     response = { success: true };
-    await apiAdapter.archive(a);
+    // Archiving no longer goes through patch(); it leaves for the page bridge. Keep covering
+    // the write-response check with the operation that still uses it.
+    await apiAdapter.remove(a);
     response = { conversation_id: b, is_archived: true };
     assert.deepEqual(await verify(a), { state: 'error', code: 422 });
     response = { is_archived: true };

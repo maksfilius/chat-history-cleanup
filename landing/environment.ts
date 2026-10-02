@@ -88,6 +88,9 @@ export const apiAdapter: ConversationAdapter = {
 
 export const apiAdapterFor = (_accountId: string): ConversationAdapter => apiAdapter;
 
+/** The demo has no page bridge; its fictional adapter archives directly. */
+export const archiveViaPage = (id: string) => act(id, 'archive');
+
 export async function verify(id: string): Promise<VerifyResult> {
   await delay();
   const chat = conversations.find((item) => item.id === id);

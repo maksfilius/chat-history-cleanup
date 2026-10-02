@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { parseConversationHref } from '../src/chatgpt/selectors.ts';
-import { forgetToken, listAll, listProjects, mapApiItem } from '../src/chatgpt/api.ts';
+import { ApiError, archiveViaPage, forgetToken, listAll, listProjects, mapApiItem } from '../src/chatgpt/api.ts';
 import { daysSince, formatAge } from '../src/cleanup/age.ts';
 import { chatId } from './fixtures.ts';
 
@@ -271,4 +271,65 @@ test('a persistent rate limit is not hammered: one retry, then report', async ()
 
   await assert.rejects(listAll(), /429/);
   assert.equal(attempts, 2);
+});
+
+// --- page bridge: archiving leaves the isolated world, so the protocol needs pinning
+
+function fakeWindow() {
+  const listeners: ((e: { source: unknown; data: unknown }) => void)[] = [];
+  const posted: Record<string, unknown>[] = [];
+  const win = {
+    origin: 'https://chatgpt.com',
+    addEventListener: (_: string, fn: (e: { source: unknown; data: unknown }) => void) => { listeners.push(fn); },
+    removeEventListener: (_: string, fn: unknown) => {
+      const i = listeners.indexOf(fn as never);
+      if (i >= 0) listeners.splice(i, 1);
+    },
+    postMessage: (data: Record<string, unknown>) => { posted.push(data); },
+  };
+  return { win, posted, deliver: (data: unknown) => listeners.slice().forEach((fn) => fn({ source: win, data })) };
+}
+
+test('the bridge resolves on its own reply and ignores everything else', async () => {
+  const { win, posted, deliver } = fakeWindow();
+  (globalThis as { window?: unknown }).window = win;
+  globalThis.fetch = (async () =>
+    json({ accessToken: 'x'.repeat(30), account: { id: 'account-1' } })) as never;
+  forgetToken();
+
+  const pending = archiveViaPage(UUID);
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(posted.length, 1);
+  assert.equal(posted[0].type, 'archive');
+  assert.equal(posted[0].id, UUID);
+
+  // Another extension's chatter, and a reply for a different request, must not settle ours.
+  deliver({ channel: 'someone-else', type: 'result', requestId: posted[0].requestId, ok: true });
+  deliver({ channel: 'chat-cleanup-bridge', type: 'result', requestId: 'not-ours', ok: true });
+  deliver({ channel: 'chat-cleanup-bridge', type: 'result', requestId: posted[0].requestId, ok: true });
+  await pending;
+  delete (globalThis as { window?: unknown }).window;
+});
+
+test('a bridge failure surfaces as the status the page saw', async () => {
+  const { win, posted, deliver } = fakeWindow();
+  (globalThis as { window?: unknown }).window = win;
+  globalThis.fetch = (async () =>
+    json({ accessToken: 'x'.repeat(30), account: { id: 'account-1' } })) as never;
+  forgetToken();
+
+  const pending = archiveViaPage(UUID);
+  await new Promise((r) => setTimeout(r, 0));
+  deliver({ channel: 'chat-cleanup-bridge', type: 'result', requestId: posted[0].requestId,
+    ok: false, status: 404, code: 'conversation_not_found' });
+  await assert.rejects(pending, (e: ApiError) => e.status === 404 && e.code === 'conversation_not_found');
+  delete (globalThis as { window?: unknown }).window;
+});
+
+test('a malformed id never reaches the page', async () => {
+  const { win, posted } = fakeWindow();
+  (globalThis as { window?: unknown }).window = win;
+  await assert.rejects(archiveViaPage('../conversation/' + UUID), /Invalid conversation identifier/);
+  assert.equal(posted.length, 0);
+  delete (globalThis as { window?: unknown }).window;
 });

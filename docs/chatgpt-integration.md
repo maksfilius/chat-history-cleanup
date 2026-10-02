@@ -186,6 +186,20 @@ beforehand; a later revert; and the Work/Chat surface toggle.
 Delete is unaffected: `PATCH { "is_visible": false }` on the same endpoint still works, which
 rules out transport, auth and account context. The broken thing is the `is_archived` field.
 
+**Cause found 2026-10-02: the world the request is sent from.** A competing extension archives
+every conversation this one could not, with the byte-identical request — because it issues it
+from a second content script declared `"world": "MAIN"`, i.e. from the page itself. Chrome sends
+an isolated-world fetch with different origin and fetch-metadata, and ChatGPT accepts it, echoes
+`is_archived: true` from the detail endpoint, and archives nothing.
+
+So archiving moved to `src/content/pageBridge.ts`, a main-world content script the isolated
+world talks to by `postMessage`. Only archiving: any script on chatgpt.com can post to that
+bridge, archiving is reversible from ChatGPT's own settings, and deleting is not. Deleting stays
+in the isolated world, where it has always worked. The session token is read inside the bridge
+and never travels in a message, which every script on the page could read.
+
+### Before the cause was found
+
 It is per conversation, not intermittent in time. Some conversations archive normally — the
 account's archive count rose from 13 to 32 across one session — while others take the write,
 report `is_archived: true` from the detail endpoint, and never reach the archive. Retrying a

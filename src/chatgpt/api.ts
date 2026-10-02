@@ -483,10 +483,50 @@ export async function listAll(onProgress?: (loaded: number) => void): Promise<In
   };
 }
 
+/**
+ * Archiving must leave the page's own world, so it goes through the bridge content script.
+ *
+ * The same PATCH sent from here is accepted and silently does nothing for many conversations;
+ * sent by a script running in the page it archives them. See src/content/pageBridge.ts.
+ *
+ * Lives in this module so the landing demo, which substitutes the whole API boundary, replaces
+ * it along with everything else instead of postMessaging into a page that has no bridge.
+ */
+const BRIDGE_CHANNEL = 'chat-cleanup-bridge';
+let bridgeRequests = 0;
+
+export async function archiveViaPage(id: string, expectedAccountId?: string): Promise<void> {
+  requireConversationId(id);
+  // The bridge reads its own session, so re-assert the account here; `call()` cannot do it.
+  const session = await sessionContext();
+  if (expectedAccountId && session.accountId !== expectedAccountId) {
+    throw new ApiError(409, 'account_changed');
+  }
+  const requestId = `${Date.now()}-${bridgeRequests++}`;
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      window.removeEventListener('message', onMessage);
+      reject(new ApiError(0, 'bridge_timeout'));
+    }, REQUEST_TIMEOUT_MS);
+    function onMessage(event: MessageEvent) {
+      const m = event.data as { channel?: string; type?: string; requestId?: string;
+        ok?: boolean; status?: number; code?: string } | null;
+      if (event.source !== window || m?.channel !== BRIDGE_CHANNEL || m.type !== 'result') return;
+      if (m.requestId !== requestId) return;
+      clearTimeout(timer);
+      window.removeEventListener('message', onMessage);
+      if (m.ok) resolve();
+      else reject(new ApiError(m.status ?? 0, m.code));
+    }
+    window.addEventListener('message', onMessage);
+    window.postMessage({ channel: BRIDGE_CHANNEL, type: 'archive', requestId, id }, '/');
+  });
+}
+
 export const apiAdapter: ConversationAdapter = {
   name: 'api',
   listVisibleConversations: async () => (await listPage(0, 28)).items,
-  archive: (id) => patch(id, { is_archived: true }),
+  archive: (id) => archiveViaPage(id),
   // ChatGPT's own "Delete" sets is_visible:false. Destructive: caller must confirm.
   remove: (id) => patch(id, { is_visible: false }),
 };
@@ -495,7 +535,9 @@ export const apiAdapter: ConversationAdapter = {
 export const apiAdapterFor = (accountId: string): ConversationAdapter => ({
   name: 'api',
   listVisibleConversations: async () => (await listPage(0, PAGE_LIMIT, accountId)).items,
-  archive: (id) => patch(id, { is_archived: true }, accountId),
+  archive: (id) => archiveViaPage(id, accountId),
+  // Deleting stays in the isolated world: it works there, it is irreversible, and the page
+  // bridge is reachable by any script on chatgpt.com.
   remove: (id) => patch(id, { is_visible: false }, accountId),
 });
 

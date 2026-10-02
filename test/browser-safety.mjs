@@ -45,6 +45,9 @@ function send(method, params = {}, sessionId) {
 }
 const deadline = setTimeout(() => { browser.kill(); throw new Error('Browser audit timed out'); }, 30_000);
 const bundle = readFileSync(new URL('../dist/content.js', import.meta.url), 'utf8');
+// Archiving leaves for the page's own world; the harness runs both halves in one world so the
+// postMessage protocol is still exercised end to end against the synthetic ChatGPT.
+const bridgeBundle = readFileSync(new URL('../dist/pageBridge.js', import.meta.url), 'utf8');
 
 try {
   console.log(JSON.stringify(await send('Browser.getVersion')));
@@ -166,6 +169,7 @@ try {
     };
   `);
   await evaluate(`document.body.style.background = '#212121'`);
+  await evaluate(bridgeBundle);
   await evaluate(bundle);
   const snapshot = async name => {
     if (!screenshots) return;

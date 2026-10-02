@@ -8,6 +8,7 @@ const archive = resolve(root, 'chat-cleanup.zip');
 const files = [
   'manifest.json',
   'content.js',
+  'pageBridge.js',
   'icons/icon16.png',
   'icons/icon32.png',
   'icons/icon48.png',
