@@ -234,6 +234,11 @@ Reversible:          yes, when it works at all
 
 ### Delete `VERIFIED`
 
+A newer route exists and is in use elsewhere: `DELETE /backend-api/conversation/id/<id>`, seen in
+a competing extension on 2026-10-02. Ours still uses the PATCH below, which works from the
+isolated world — unlike archiving. Worth remembering if that ever stops being true.
+
+
 ```text
 UI route:            row "…" menu -> Delete -> confirm dialog
 Request:             PATCH /backend-api/conversation/<id>  { "is_visible": false }
