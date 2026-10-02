@@ -347,11 +347,14 @@ export function settledOk(kind: OpKind, v: VerifyResult): boolean {
 }
 
 /**
- * ChatGPT accepts `is_archived: true`, echoes it back from the detail endpoint, and leaves the
- * conversation in the active list. Its own Archive menu item fails the same way, so this is not
- * something the extension can retry its way out of (observed 2026-10-01).
+ * The write landed but ChatGPT had not listed the conversation as archived yet.
+ *
+ * Archiving goes through the page bridge and works; the archived listing simply trails it —
+ * measured 2026-10-02, conversations reported like this were all in the archive minutes later.
+ * So this is "not confirmed", not "failed", and the wording has to say so: the previous text
+ * blamed ChatGPT for losing work it had actually done.
  */
-export const ARCHIVE_NOT_APPLIED = 'ChatGPT accepted the request but did not archive it';
+export const ARCHIVE_NOT_APPLIED = 'archived, but ChatGPT has not listed it yet';
 
 function unconfirmed(kind: OpKind, v: VerifyResult): string {
   if (kind === 'archive' && v.state === 'deleted') return 'conversation was deleted; it was not archived';

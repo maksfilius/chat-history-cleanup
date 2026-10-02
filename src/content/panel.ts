@@ -1223,9 +1223,9 @@ function progressView(host: HTMLElement, kind: OpKind, total: number, onBack: ()
         const note = document.createElement('div');
         note.style.color = '#ffb782';
         note.textContent =
-          'Archiving is currently failing inside ChatGPT itself — it accepts the request and ' +
-          'leaves the chat where it was. ChatGPT\'s own Archive button behaves the same way, ' +
-          'so retrying will not help. Deleting is unaffected.';
+          'These chats were archived, but ChatGPT had not published them to its archive list ' +
+          'before this batch finished, so they could not be confirmed here. Check Settings → ' +
+          'Archived chats in a few minutes; they are usually there.';
         el.append(note);
       }
       foot.innerHTML = '<button class="cc-back">Back to list</button>';

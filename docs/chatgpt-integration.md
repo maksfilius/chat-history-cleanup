@@ -198,6 +198,12 @@ bridge, archiving is reversible from ChatGPT's own settings, and deleting is not
 in the isolated world, where it has always worked. The session token is read inside the bridge
 and never travels in a message, which every script on the page could read.
 
+**What remains after the fix `2026-10-02`.** The write works; the archived listing trails it by
+more than the confirmation waits, so a batch finishes reporting conversations as unconfirmed
+that are in the archive minutes later. Confirming each conversation on its own pays that lag
+once per conversation and cannot win. The shape that can: write the whole batch, then read the
+archived listing once, a little later, and settle every conversation from that one read.
+
 ### Before the cause was found
 
 It is per conversation, not intermittent in time. Some conversations archive normally — the
