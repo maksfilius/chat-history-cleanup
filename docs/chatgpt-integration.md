@@ -198,11 +198,24 @@ bridge, archiving is reversible from ChatGPT's own settings, and deleting is not
 in the isolated world, where it has always worked. The session token is read inside the bridge
 and never travels in a message, which every script on the page could read.
 
-**What remains after the fix `2026-10-02`.** The write works; the archived listing trails it by
-more than the confirmation waits, so a batch finishes reporting conversations as unconfirmed
-that are in the archive minutes later. Confirming each conversation on its own pays that lag
-once per conversation and cannot win. The shape that can: write the whole batch, then read the
-archived listing once, a little later, and settle every conversation from that one read.
+**Confirm with the detail endpoint, never the archived listing `VERIFIED 2026-10-02`.**
+Measured on one conversation, polling both every few seconds after the write:
+
+```text
++3.1s   detail=true   listed=false
++9.7s   detail=true   listed=false
++21.2s  detail=true   listed=false
++33.5s  detail=true   listed=false
+```
+
+`is_archived` on the detail endpoint is correct within seconds. The archived listing is built
+from an index that trails by tens of seconds and varies with load on ChatGPT's side — nothing
+about the conversation predicts it. A batch that confirms against that listing reports its own
+successful work as failed, which is what it did.
+
+The detail field only ever lied while our write was going out from the isolated world and
+archiving nothing. With the page bridge the write really happens, so the field means what it
+says, and the cross-check added to catch the lie is gone.
 
 ### Before the cause was found
 
