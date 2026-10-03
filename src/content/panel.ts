@@ -118,6 +118,10 @@ const CSS = `
 .cc-success .cc-result-kicker{color:var(--cc-accent)}
 .cc-result .cc-stat{font-size:23px;line-height:1.25;font-weight:600;letter-spacing:-.5px}
 .cc-result-copy{margin:10px auto 0;color:#a4a4a4;max-width:290px;line-height:1.6}
+.cc-result-notice{margin:16px auto 0;max-width:330px;padding:12px 14px;text-align:left;
+ border:1px solid #647b4e;border-radius:10px;background:#d0f2ae12;color:#c9d1c4;line-height:1.45}
+.cc-result-notice strong{display:block;margin-bottom:5px;color:#e4f7d2;font-size:13px}
+.cc-result-notice span{display:block;color:#b8c1b4;font-size:12px}
 .cc-attention .cc-result-icon{color:#efbd7f;background:#352b20}
 .cc-ft .cc-back{font:600 13px system-ui,sans-serif;
  padding:10px 12px;transition:background .15s}
@@ -818,10 +822,10 @@ export function createUi(extraStyles = ''): HTMLElement {
           queueView?.update(ops);
           // The queue owns ordered persistence; UI writes could overwrite newer snapshots.
         },
-        // ChatGPT's sidebar does not react to our writes, so prune the row ourselves —
-        // for archive too, since an archived chat no longer belongs in history.
+        // Do not simulate a sidebar update for archive: detail confirmation can precede
+        // list visibility. Let ChatGPT render its own archive state; the report explains it.
         onSettled: (id: string) => {
-          removeRow(id);
+          if (kind === 'remove') removeRow(id);
           selected.delete(id);
           if (inventory) {
             inventory = { ...inventory, conversations: inventory.conversations.filter((c) => c.id !== id) };
@@ -1169,7 +1173,6 @@ function progressView(host: HTMLElement, kind: OpKind, total: number, onBack: ()
     ) {
       const left = Math.max(0, total - done - failed.length);
       const complete = total > 0 && done === total && failed.length === 0 && !haltedBy;
-      const pastVerb = kind === 'archive' ? 'archived' : 'deleted';
       const result = document.createElement('div');
       result.className = `cc-result ${complete ? 'cc-success' : 'cc-attention'}`;
       result.innerHTML = `<div class="cc-result-icon" aria-hidden="true">
@@ -1177,20 +1180,35 @@ function progressView(host: HTMLElement, kind: OpKind, total: number, onBack: ()
           ${complete ? '<path class="cc-check" d="m20 32 8 8 16-17"/>' : '<path d="M32 20v15m0 9h.01"/>'}
         </svg></div><p class="cc-result-kicker"></p>`;
       (result.querySelector('.cc-result-kicker') as HTMLElement).textContent =
-        complete ? 'Cleanup complete' : left || haltedBy ? 'Cleanup paused' : 'Cleanup needs attention';
-      stat.textContent = `${plural(done, 'chat')} ${pastVerb}`;
+        complete ? (kind === 'archive' ? 'Wait for ChatGPT to update' : 'Cleanup complete')
+          : left || haltedBy ? 'Cleanup paused' : 'Cleanup needs attention';
+      stat.textContent = kind === 'archive'
+        ? `${plural(done, 'archive request')} accepted by ChatGPT`
+        : `${plural(done, 'chat')} deleted`;
       result.append(stat);
       const copy = document.createElement('p');
       copy.className = 'cc-result-copy';
       copy.textContent = complete
         ? kind === 'archive'
-          ? 'You can restore these chats from ChatGPT settings. ChatGPT refreshes its own ' +
-            'sidebar and archive with a delay, so they may still appear there for a few minutes.'
+          ? 'The archive requests finished successfully.'
           : 'The selected chats have been permanently deleted.'
-        : `${done} of ${total} chats ${pastVerb}.` +
+        : kind === 'archive'
+          ? `${done} of ${total} archive requests accepted by ChatGPT.` +
+            (failed.length ? ` ${failed.length} failed.` : '') +
+            (left ? ` ${left} not processed.` : '')
+          : `${done} of ${total} chats deleted.` +
           (failed.length ? ` ${failed.length} failed.` : '') +
           (left ? ` ${left} not processed.` : '');
       result.append(copy);
+      if (kind === 'archive' && done > 0) {
+        const notice = document.createElement('div');
+        notice.className = 'cc-result-notice';
+        notice.setAttribute('role', 'note');
+        notice.innerHTML = '<strong>Chats may remain visible for several minutes</strong>' +
+          '<span>Do not archive them again. Wait a few minutes, then reload ChatGPT or check ' +
+          'Settings → Data controls → Archived chats.</span>';
+        result.append(notice);
+      }
       el.replaceChildren(result, fails);
       if (haltedBy) {
         // Nothing was lost: the remaining conversations are saved and resumable.

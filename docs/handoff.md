@@ -15,87 +15,117 @@ analytics; two permissions, `storage` and `https://chatgpt.com/*`.
 | Packaged, not submitted | `0.2.0` — `chat-cleanup.zip`, SHA-256 in `docs/store/dashboard-submission.md` |
 | Landing | live at `https://maksfilius.github.io/chat-history-cleanup/`, deploys from `pages/` on push to `main` |
 
-`0.2.0` renames the extension for Store search and carries the archive fix below. It has **not**
-been through a real-account regression run — that is the main thing left.
+`0.2.0` renames the extension for Store search and contains the current archive transport.
+On 2026-10-03 the user successfully archived 28 chats in one batch; processing took several
+minutes and the chats remained visible in the sidebar for a further few minutes. This validates
+that observed batch, but does not establish a guaranteed list-update time.
 
-## The archive bug, and why it took two days
+## Current archive UX — 2026-10-03
 
-**Symptom.** Archiving reported success, the row vanished from the sidebar, and after a reload
-the conversation was back. Deleting worked fine.
+Archiving remains available. A completed batch now says “Wait for ChatGPT to update” and
+“N archive requests accepted by ChatGPT.” A visually distinct notice says chats may remain
+visible for several minutes and tells the user not to archive them again: wait a few minutes,
+then reload ChatGPT or check Settings → Data controls → Archived chats. Partial results show
+the same notice when at least one archive request succeeded. No statement attributes the delay
+to a proven ChatGPT bug or guarantees a maximum delay.
 
-**Root cause.** The request was being sent from the content script's **isolated world**. Chrome
-issues that fetch with a different origin and fetch-metadata, and ChatGPT accepts it — `200
-{"success": true}`, and the detail endpoint dutifully reports `is_archived: true` — while
-archiving nothing, permanently. Re-sending never moved a conversation.
+The extension no longer removes archived rows from ChatGPT's sidebar itself; it leaves that
+rendering to ChatGPT. Successfully processed IDs still leave our local cleanup list. Delete
+behaviour is unchanged. The browser test checks both the status wording and that the archive
+sidebar row is not artificially removed.
 
-**Fix.** `src/content/pageBridge.ts`, a second content script declared `"world": "MAIN"` in the
-manifest. The isolated world asks it over `postMessage`; it performs the PATCH from the page
-itself, where the identical request works. Available since Chrome 111; the manifest already
-required 120.
+Comparison baseline for the 0.1.0 source review: commit `1e7b65b` (release preparation).
+There is no release tag proving an exact Store ZIP match. Main extension differences are the
+name/summary, MAIN archive bridge, bounded inventory retries and clearer load errors, a
+redundant verification-read reduction, and the updated archive UX/tests. Filters, protections,
+selection, delete endpoint, and requested permissions are unchanged from that source baseline.
 
-Only archiving goes through the bridge, deliberately:
+## Latest correction — chats reached the archive after a delay (2026-10-02)
 
-- any script on chatgpt.com can post to it, so whatever it exposes is exposed to the page;
-- archiving is reversible from ChatGPT's own settings, deleting is not;
-- deleting therefore stays in the isolated world, where it has always worked.
+The user corrected the preceding report: the chats did reach the archive, but with a delay.
+For those observed chats, the native archive action was not permanently failing. The exact
+latency and the mechanism behind delayed visibility were not measured. HTTP 429 was observed
+for inventory loading separately; causation between that limit and the archive delay is not
+established. This does not yet validate every previous extension batch or the release ZIP.
 
-The session token is read inside the bridge and never travels in a message — every script on the
-page can read those.
+Treat earlier statements below that these same chats were never archived as superseded by
+this correction. Do not repeat archive writes solely because the sidebar or archived list has
+not updated yet. Future live checks should record the request outcome, elapsed time, and eventual
+active/archive state separately. Further transport changes need evidence beyond immediate
+listing visibility. No additional requests were made to the user's account for this update.
 
-### What was ruled out first, so you do not repeat it
+## Live batch confirmation — 28 chats (2026-10-03)
 
-All of these were measured and are dead ends. The request content was never the problem.
+The user reports that an extension batch archived all 28 selected chats successfully. Queue
+processing took several minutes, then the chats remained visible in the sidebar for another
+few minutes before ChatGPT's list caught up. This supports the distinction between completed
+archive requests and delayed list visibility. The completion UI was made more prominent around
+that distinction; it does not promise a fixed delay.
 
-| Hypothesis | How it died |
-| --- | --- |
-| The archived listing simply lags | The conversation was absent from ChatGPT's own Archived chats too |
-| Wrong account or workspace | One `personal` account; the native button sends the same `ChatGPT-Account-ID` |
-| The endpoint or payload changed | ChatGPT's own Archive menu item sends the byte-identical `PATCH /backend-api/conversation/<id> {"is_archived":true}` |
-| Missing headers | Replaying with the app's full set — `oai-did`, `originator`, `x-openai-web-frontend` — changed nothing |
-| A missing `POST /backend-api/conversation/init` first | Replayed init + patch; nothing |
-| A second channel (WebSocket, XHR, beacon) | Hooks on all four: the native click emits exactly one request and nothing else, then or in the following minute |
-| The Work/Chat surface toggle | Same result in both |
+## Latest observation — native archive now also fails (2026-10-02)
 
-A DOM adapter that clicked the row menu was also built and reverted — clicking the menu produces
-that same PATCH, so it could never have helped.
+After earlier native success, the user now reports that ChatGPT's own three-dot Archive
+also fails, the archived list does not load, and the competitor extension fails too.
+Our inventory warning is specifically mapped from HTTP 429; this establishes throttling
+for an inventory request, not the status or durable result of the archive PATCH.
+OpenAI's public status page currently reports operational; that does not exclude an
+account/session-specific problem. It is not yet established that both extensions were
+disabled and the page reloaded when the native failure was observed.
 
-### The second trap: confirming the archive
+Do not attribute the current failure exclusively to our transport or declare it a proven
+native bug. Pause request-generating tests. Recheck one disposable native archive after
+throttling subsides in a browser session with both extensions disabled and a fresh page.
+No further transport changes are justified without that control or a captured failing response.
 
-Having learned that `detail.is_archived` can be `true` for an unarchived conversation, the
-obvious move is to confirm against `?is_archived=true` instead. **Do not.** That listing is built
-from an index that trails writes by tens of seconds and varies with load:
+## Live feedback — archive failure still reproducible (2026-10-02)
 
-```text
-+3.1s   detail=true   listed=false
-+9.7s   detail=true   listed=false
-+21.2s  detail=true   listed=false
-+33.5s  detail=true   listed=false
-```
+The user retested after the bridge/account/header changes: rows disappear but return after
+reload. The user also confirmed that ChatGPT's native Archive menu persists correctly.
+The previous transport changes did NOT resolve the reported bug. MAIN versus ISOLATED,
+account headers, and synthetic success tests are not an established root cause.
 
-A batch confirming against it reports its own successful work as failed. The detail field only
-lied while the write was not archiving; once the bridge made the write real, it became correct
-and immediate, which is what `verify()` uses.
+Next step: capture and compare native versus extension archive for an explicitly chosen
+throwaway conversation on the affected browser, then verify state after reload. Do not
+repeat speculative transport changes or label the returning rows a propagation delay.
+The immediate detail-based confirmation remains insufficient on this affected account.
 
-ChatGPT's sidebar is built from the same trailing index, which is why an archived conversation
-sits there for a few minutes. The archive success screen says so; that is the honest answer to
-the original symptom.
+Browser access in the agent environment currently finds only the headless Chrome process
+for the local landing preview (`/tmp/chat-cleanup-pages-preview`), with zero exposed tabs.
+No live authenticated ChatGPT tab was accessed and no user conversations were changed.
 
-## What you can and cannot trust in ChatGPT's API
+## Archive investigation update — 2026-10-02
 
-Full detail in `docs/chatgpt-integration.md`. The short version:
+**Reported symptom:** chats disappear when archive reports success, then return after reload.
+The MAIN bridge is already present in 0.2.0, but a controlled real-account regression of the
+exact ZIP is still required. Do not describe this issue as resolved based on synthetic tests.
 
-| Thing | Verdict |
-| --- | --- |
-| `GET detail -> is_archived` | Immediate and correct — **provided the write came from the page world** |
-| `?is_archived=true` listing | Correct eventually; trails by tens of seconds. Never use it to confirm a write |
-| `total` on a listing | Unreliable. Reported 29 for an account with 65 — page until a short page |
-| Cookie-only requests | The list answers 200 with a silently partial set; the detail endpoint 404s. Always send the bearer token |
-| Rate limits | Per endpoint, and burst-sensitive. Three parallel pages all 429 while a single request before and after returned 200. No `Retry-After`, no `x-ratelimit-*` headers exist |
-| `DELETE /backend-api/conversation/id/<id>` | A newer delete route, seen elsewhere. We still use `PATCH {is_visible:false}`, which works |
+Static inspection of competitor `daipnaolfenpglcjgjkgeaandppiabgn` version 5.2.2 confirms that it
+uses MAIN at document_start, captures page fetch, gets the session token/account ID, and sends
+`PATCH {is_archived:true}` with `chatgpt-account-id`. Its package was read, not installed.
 
-The rate limit is the single most important operational constraint: our traffic can lock the user
-out of their own history in ChatGPT's own UI. Inventory reads retry once on a 429 and then stop —
-retrying harder spends a budget that is already gone.
+This review found and corrected these gaps in our implementation:
+
+- The bridge omitted the account header and never compared its fresh session to the reviewed
+  account. The isolated world's cached session check did not protect the actual write.
+- It accepted any 2xx body. It now requires `success === true` before detail verification.
+- Its fetches outlived the caller's timeout. They now share an abort deadline; a late session
+  response cannot start an archive write after that deadline.
+- It now captures page fetch at document_start, refreshes once on 401, and propagates Retry-After.
+- The existing browser test accidentally ran BOTH bundles in ISOLATED. It now uses separate
+  worlds. An additional browser regression uses a backend fixture outside the page and destroys
+  both worlds before re-reading active and archived listings.
+
+The old handoff's assertion about Chrome sending a different origin was not demonstrated by
+retained request evidence. A matching endpoint/body alone also cannot prove that a native DOM
+click would behave identically. Keep the MAIN implementation, but treat the server-side cause
+as unconfirmed until a controlled live test establishes it.
+
+The queue still uses detail identity plus is_archived for immediate confirmation. Archive
+listings were observed to lag, so they are not polled per operation. For release validation,
+check durable state after reload and in ChatGPT's Archived chats. Returning rows must not be
+explained away as delay without evidence. The completion UI describes possible delayed list updates without claiming a proven cause.
+
+See `docs/chatgpt-integration.md` for current evidence and the explicit regression gates.
 
 ## Layout
 
@@ -114,8 +144,16 @@ packaging allowlist in `scripts/package-extension.mjs`; a new file that is not l
 ship.
 
 Gate before any commit: `npm run typecheck && npm test && npm run build && npm run test:browser
-&& npm run test:landing`. The browser suite drives the real bundle against a synthetic ChatGPT
-and loads both worlds, so it exercises the bridge protocol end to end.
+&& npm run test:landing`. The browser suite drives production bundles against synthetic data in separate worlds.
+`test/archive-browser.mjs` also verifies active/archive state after a fresh navigation.
+These checks validate our implementation, not ChatGPT server behaviour.
+
+## Automated verification from this review
+
+Typecheck, 109 unit tests, build, browser safety, separate-world archive/reload regression,
+and landing browser checks pass. Browser tests used Chrome 154 with synthetic backend data;
+no live ChatGPT session was accessed. The 0.2.0 ZIP was rebuilt; its current hash is in
+`docs/store/dashboard-submission.md`. Changes are uncommitted; nothing was submitted.
 
 ## Before submitting 0.2.0
 

@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://maksfilius.github.io/chat-history-cleanup/sitemap.xml
+Sitemap: https://chatcleanup.com/sitemap.xml

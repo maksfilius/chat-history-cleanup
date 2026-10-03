@@ -9,20 +9,20 @@
     <title>Bulk Delete &amp; Archive ChatGPT Chats — Chat Cleanup for Chrome</title>
     <meta
       name="description"
-      content="Bulk delete or archive multiple ChatGPT chats at once. Filter by age, review the exact list, keep pinned and Project chats. Free Chrome extension."
+      content="Bulk delete or archive selected ChatGPT chats. Filter by last activity, review each batch, and skip protected chats by default. Free Chrome extension."
     />
 
     <!-- Swap these absolute URLs when the custom domain goes live. -->
-    <link rel="canonical" href="https://maksfilius.github.io/chat-history-cleanup/" />
-    <meta property="og:url" content="https://maksfilius.github.io/chat-history-cleanup/" />
+    <link rel="canonical" href="https://chatcleanup.com/" />
+    <meta property="og:url" content="https://chatcleanup.com/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Chat Cleanup" />
     <meta property="og:title" content="Bulk delete and archive ChatGPT chats — safely" />
     <meta
       property="og:description"
-      content="ChatGPT removes one chat, or all of them. Chat Cleanup adds everything in between: multi-select, age filters and a review step."
+      content="Select multiple ChatGPT chats, filter by last activity, and review the exact batch before archiving or deleting. Free Chrome extension."
     />
-    <meta property="og:image" content="https://maksfilius.github.io/chat-history-cleanup/assets/shot-select.png" />
+    <meta property="og:image" content="https://chatcleanup.com/assets/shot-select.png" />
     <meta name="twitter:card" content="summary_large_image" />
 
     <link rel="icon" type="image/svg+xml" href="assets/logo.svg" />
@@ -230,8 +230,8 @@
       .panel-review { background-image: url("assets/shot-review.png"); }
       .panel-done {
         background-image: url("assets/shot-done.png");
-        aspect-ratio: 421 / 363;
-        background-position: 98.14% 96.11%;
+        aspect-ratio: 421 / 495;
+        background-position: 98.14% 100%;
       }
       .step:hover .panel {
         box-shadow: 0 34px 74px -18px rgb(0 0 0 / 75%), 0 0 0 1px rgb(201 242 123 / 22%);
@@ -438,9 +438,9 @@
           <div class="hero-grid">
             <h1 data-reveal>Bulk delete ChatGPT chats. Keep the ones that matter.</h1>
             <p class="lede" data-reveal style="--d: 80ms">
-              ChatGPT clears your whole chat history, or one conversation at a time. Chat Cleanup
-              adds everything in between: multi-select, age filters, and a review step before
-              anything goes.
+              Select multiple conversations, find old chats by last activity, and review the
+              exact list before archiving or deleting. Free for Chrome, with important chats
+              excluded from bulk selection by default.
             </p>
             <div class="hero-actions" data-reveal style="--d: 160ms">
               <a
@@ -475,14 +475,14 @@
       <section id="why">
         <div class="wrap">
           <div class="section-head" data-reveal>
-            <h2>ChatGPT gives you two options. Neither is the one you want.</h2>
-            <p class="lede">Which works until your history is a few hundred chats deep.</p>
+            <h2>Clean up a batch. Keep the rest.</h2>
+            <p class="lede">Choose which conversations to remove, even when your history is hundreds of chats deep.</p>
           </div>
 
           <div class="compare">
             <div class="card" data-reveal>
               <h3>One at a time</h3>
-              <p>Menu, delete, confirm. Repeat. Fine for one chat, hopeless for a year of them.</p>
+              <p>Useful for a single conversation. For a larger cleanup, each chat needs its own menu and confirmation.</p>
             </div>
             <div class="card" data-reveal style="--d: 90ms">
               <h3>Delete all chats</h3>
@@ -490,7 +490,7 @@
             </div>
             <div class="card card-win" data-reveal style="--d: 180ms">
               <h3>Chat Cleanup</h3>
-              <p>Pick a subset by age or by hand. Review it. Archive or delete it. Free, with no cap on batch size.</p>
+              <p>Pick a batch by age or by hand. Review it. Archive or delete it. Free, with no paid per-chat quota.</p>
             </div>
           </div>
         </div>
@@ -509,13 +509,14 @@
               <div class="step-text" data-reveal>
                 <h3>Select old chats</h3>
                 <p>
-                  Age presets for old chats — 30, 90, 180 and 365 days — plus Select all,
-                  Shift-click ranges and plain hand-picking, across your whole chat history with
-                  Projects included.
+                  Find chats last active at least 30, 90, 180 or 365 days ago. Select them by
+                  hand, with Shift-click ranges or Select all. Project conversations are shown
+                  in expandable groups.
                 </p>
                 <p>
-                  Pinned chats, Project chats and anything you mark protected are skipped. Nothing
-                  is scored by AI, and nothing is selected for you.
+                  Bulk selection skips pinned chats, Project chats, manually protected chats and
+                  chats with unknown protection status. You choose which filters to apply; there
+                  is no AI importance scoring.
                 </p>
               </div>
               <div
@@ -531,8 +532,8 @@
               <div class="step-text" data-reveal>
                 <h3>Review the exact list</h3>
                 <p>
-                  Every title and the exact count, before anything is removed. Permanent deletion
-                  says so plainly and needs a second confirmation.
+                  See every selected title and the exact count before confirming. The Delete
+                  dialog clearly warns that the action is permanent.
                 </p>
                 <p>Include a protected chat on purpose and the dialog names the override.</p>
               </div>
@@ -549,17 +550,18 @@
               <div class="step-text" data-reveal>
                 <h3>Archive or delete</h3>
                 <p>
-                  Archive runs one chat at a time, delete at most two. Every result is checked
-                  against ChatGPT, rate limits stop the batch cleanly, failures stay visible.
+                  Follow progress for each chat and see any failures. When ChatGPT accepts the
+                  archive requests, its sidebar and Archived chats list may still need several
+                  minutes to update.
                 </p>
-                <p>Close the tab mid-run and the batch waits for you — resume or discard.</p>
+                <p>Stop a running batch or reopen ChatGPT after an interruption to resume or discard the saved work.</p>
               </div>
               <div
                 class="panel panel-done"
                 data-reveal
                 style="--d: 120ms"
                 role="img"
-                aria-label="A completion report reading Cleanup complete, nine chats archived."
+                aria-label="An archive report showing nine requests accepted by ChatGPT, with a prominent notice to wait several minutes before reloading or checking Archived chats."
               ></div>
             </div>
           </div>
@@ -580,11 +582,11 @@
             </div>
             <div class="card" data-reveal style="--d: 80ms">
               <h3>Bulk archive</h3>
-              <p>Clear the sidebar without losing anything. Archived chats stay restorable.</p>
+              <p>Move selected chats out of regular history without deleting them. Restore them from ChatGPT settings.</p>
             </div>
             <div class="card" data-reveal style="--d: 160ms">
               <h3>Age filters</h3>
-              <p>One click for everything older than 30, 90, 180 or 365 days.</p>
+              <p>Find eligible chats last active at least 30, 90, 180 or 365 days ago.</p>
             </div>
             <div class="card" data-reveal style="--d: 80ms">
               <h3>Protected by default</h3>
@@ -596,7 +598,7 @@
             </div>
             <div class="card" data-reveal style="--d: 240ms">
               <h3>Resumable batches</h3>
-              <p>Interrupted cleanups survive a reload, and every result is verified.</p>
+              <p>Resume saved work after a reload. Uncertain outcomes are checked before another attempt.</p>
             </div>
           </div>
         </div>
@@ -607,17 +609,17 @@
         <div class="wrap">
           <div class="privacy-card" data-reveal>
             <div class="section-head">
-              <h2>Nothing leaves your browser</h2>
+              <h2>Your chats stay between you and ChatGPT</h2>
               <p class="lede">
-                A cleanup extension reads your whole chat list, so here is exactly what this one
-                does with it.
+                Chat Cleanup processes your history in your browser and sends requests only to
+                ChatGPT. Your chat data is not sent to us or to other services.
               </p>
             </div>
 
             <ul class="checks">
               <li>
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                <span>No account, no backend, no cloud sync — there is no server to send anything to.</span>
+                <span>No separate Chat Cleanup account, developer-operated backend or cloud sync.</span>
               </li>
               <li>
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -629,7 +631,7 @@
               </li>
               <li>
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                <span>Two permissions: storage, and access to chatgpt.com.</span>
+                <span>Stores preferences, protections and unfinished batches in your browser.</span>
               </li>
               <li>
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -637,7 +639,7 @@
               </li>
               <li>
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                <span>Verification can download a chat's detail response; message content is never analyzed, stored or sent to the developer.</span>
+                <span>Checking a result can download a chat’s messages. Their content is not analyzed, retained or sent to the developer.</span>
               </li>
             </ul>
 
@@ -659,53 +661,40 @@
             <details>
               <summary>Can I delete multiple ChatGPT chats at once?</summary>
               <div class="answer">
-                <p>
-                  Not in ChatGPT itself. It deletes one conversation at a time from the three-dot
-                  menu, or every conversation at once from Settings → Data controls → Delete all
-                  chats. There is no checkbox multi-select.
-                </p>
-                <p>
-                  Chat Cleanup adds the missing middle: checkboxes, Shift-click ranges and age
-                  filters, so you can delete a specific batch and keep the rest.
-                </p>
+                <p>Yes. Chat Cleanup lets you select a specific batch with checkboxes, Shift-click ranges or age filters, then review and confirm before deleting.</p>
+                <p>ChatGPT also offers individual deletion and Delete all chats under Settings → Data controls. Use Chat Cleanup when you want to choose a batch and keep the rest.</p>
               </div>
             </details>
 
             <details>
               <summary>How do I delete all my ChatGPT chats?</summary>
               <div class="answer">
-                <p>
-                  If you want everything gone you do not need an extension: Settings → Data
-                  controls → Delete all chats. It is permanent.
-                </p>
-                <p>
-                  Use Chat Cleanup when you want most of your history gone but not all of it — say
-                  everything older than a year, while pinned and Project chats stay.
-                </p>
+                <p>To clear your history, ChatGPT provides Settings → Data controls → Delete all chats. This can also affect Project conversations and cannot be undone.</p>
+                <p>Use Chat Cleanup when you want to review a selected batch instead. Its bulk selection skips pinned, Project and manually protected chats by default.</p>
               </div>
             </details>
 
             <details>
               <summary>Can I delete old ChatGPT chats but keep the important ones?</summary>
               <div class="answer">
-                <p>
-                  Yes — that is the reason this extension exists. Age presets select everything
-                  older than 30, 90, 180 or 365 days, and pinned chats, Project chats and chats you
-                  have marked protected are skipped automatically. You can still include a
-                  protected chat by selecting it explicitly, and the confirmation says so.
-                </p>
+                <p>Yes. Age presets use the last activity date returned by ChatGPT, not just the creation date. They find eligible chats inactive for at least 30, 90, 180 or 365 days. Chats with an unknown activity date are not selected by age.</p>
+                <p>Bulk selection skips pinned chats, Project chats, manually protected chats and chats with unknown protection status. You can explicitly select a protected chat; the confirmation identifies that choice.</p>
               </div>
             </details>
 
             <details>
               <summary>What is the difference between archiving and deleting a ChatGPT chat?</summary>
               <div class="answer">
-                <p>
-                  Archiving removes a conversation from your sidebar but keeps it in your account,
-                  restorable from ChatGPT settings. Deleting removes it from your account and
-                  cannot be undone.
-                </p>
-                <p>If you are not sure, archive. Chat Cleanup does both.</p>
+                <p>Archiving moves a conversation out of regular history without deleting it. You can unarchive it in ChatGPT under Settings → Data controls → Archived chats. List updates may be delayed.</p>
+                <p>Deleting is permanent and cannot be undone. If you may need a conversation again, choose Archive.</p>
+              </div>
+            </details>
+
+            <details>
+              <summary>Why do chats still appear after archiving?</summary>
+              <div class="answer">
+                <p>ChatGPT can report a chat as archived before its sidebar and Archived chats list update. Chat Cleanup reports the status received from ChatGPT. A chat may remain visible while ChatGPT updates its lists.</p>
+                <p>Wait before repeating the action. Then check Settings → Data controls → Archived chats. There is no guaranteed update time. If the chat still does not appear there, contact support and include any error shown in Chat Cleanup.</p>
               </div>
             </details>
 
@@ -723,79 +712,47 @@
             <details>
               <summary>Is a ChatGPT bulk delete extension safe to install?</summary>
               <div class="answer">
-                <p>
-                  It depends entirely on the extension — anything that can read your chat list
-                  could in principle send it somewhere. Chat Cleanup has no backend, no account, no
-                  analytics and no third-party requests. It asks for exactly two permissions,
-                  storage and access to chatgpt.com, which Chrome shows you before you install and
-                  which you can re-check any time on the extension's page.
-                </p>
+                <p>Check the extension’s permissions, privacy policy and confirmation flow. Chat Cleanup uses local extension storage, runs only on chatgpt.com and sends requests only to ChatGPT through your existing session. It has no developer-operated backend, analytics or advertising.</p>
+                <p>Result checks can download conversation detail responses, including messages. Their content is not analyzed, retained or sent to the developer. You see an access disclosure before loading history and review the selected chats before an action.</p>
               </div>
             </details>
 
             <details>
               <summary>Does it work with ChatGPT Projects?</summary>
               <div class="answer">
-                <p>
-                  Yes. Conversations inside Projects are loaded and can be expanded and selected as
-                  a group. They are excluded from global and rule-based selection by default, and
-                  only conversations are ever changed — never the Project itself.
-                </p>
+                <p>Yes. Available Project conversations appear in expandable groups. They are excluded from global bulk selection and age filters by default; you can explicitly select conversations in a Project.</p>
+                <p>Chat Cleanup changes conversations, not the Project itself. If ChatGPT does not return part of your history, the panel shows a warning; unavailable chats cannot be selected.</p>
               </div>
             </details>
 
             <details>
               <summary>What happens if I close the tab in the middle of a cleanup?</summary>
               <div class="answer">
-                <p>
-                  The unfinished batch is stored locally in your Chrome profile. Reopen ChatGPT and
-                  you can resume or discard it. A request whose outcome was uncertain is reconciled
-                  by reading its result before it could ever be sent twice.
-                </p>
+                <p>The unfinished batch is saved locally in your Chrome profile. Reopen ChatGPT in the same account and workspace to resume or discard it.</p>
+                <p>A request already sent may finish after the tab closes. On resume, uncertain outcomes are checked before a retry; if the result cannot be established, it is reported rather than silently repeated.</p>
               </div>
             </details>
 
             <details>
               <summary>Does deleting old chats make ChatGPT faster?</summary>
               <div class="answer">
-                <p>
-                  No, and it is worth being clear about that. Response speed depends on the length
-                  of the conversation you currently have open, not on how many old chats sit in
-                  your sidebar — starting a fresh chat is what helps there.
-                </p>
-                <p>
-                  Cleaning up makes the sidebar usable and your history easier to search. It does
-                  not make ChatGPT think faster.
-                </p>
+                <p>Chat Cleanup is designed to organize your history. It does not optimize ChatGPT’s response generation, and we do not promise faster replies after deleting old chats.</p>
               </div>
             </details>
 
             <details>
               <summary>Can I export my ChatGPT chats before deleting them?</summary>
               <div class="answer">
-                <p>
-                  Yes, and it is worth doing before a large delete. In ChatGPT open Settings → Data
-                  controls → Export data; a download link arrives by email.
-                </p>
-                <p>
-                  Chat Cleanup does not export anything itself. It only archives and deletes, which
-                  is why archiving is the safer choice when you are unsure.
-                </p>
+                <p>Chat Cleanup does not include an export feature. For eligible accounts, ChatGPT offers Settings → Data controls → Export data. Download and check the export before deleting conversations you want to keep.</p>
+                <p>Export availability depends on your account and workspace. See <a href="https://help.openai.com/en/articles/7260999-exporting-your-chatgpt-history-and-data">OpenAI’s export instructions</a> for the current options.</p>
               </div>
             </details>
 
             <details>
               <summary>Is there a limit on how many chats I can delete at once?</summary>
               <div class="answer">
-                <p>
-                  No. Chat Cleanup is free and puts no cap on how many conversations you select,
-                  unlike free tiers that limit you to a handful per batch.
-                </p>
-                <p>
-                  Large batches simply run at a deliberate pace: archive processes one conversation
-                  at a time and delete at most two, so ChatGPT's rate limits are respected and a
-                  stopped batch can be resumed.
-                </p>
+                <p>Chat Cleanup has no paid per-chat quota. You can select multiple available conversations and review the batch before confirming.</p>
+                <p>Large batches take time, and ChatGPT may limit requests. The extension backs off on temporary errors and pauses if it cannot continue. Saved work can be resumed later; repeatedly reopening the panel may generate more requests.</p>
               </div>
             </details>
 
@@ -826,7 +783,7 @@
       <section id="get">
         <div class="wrap">
           <div class="final" data-reveal>
-            <h2>Clean a year of history in a few minutes</h2>
+            <h2>Make room for the chats you want to keep</h2>
             <p class="lede">
               Free, and nothing is removed until you have seen the exact list and confirmed it.
             </p>
@@ -888,10 +845,14 @@
             "name": "Bulk Delete & Archive ChatGPT Chats — Chat Cleanup",
             "applicationCategory": "BrowserApplication",
             "operatingSystem": "Chrome",
-            "url": "https://maksfilius.github.io/chat-history-cleanup/",
+            "url": "https://chatcleanup.com/",
             "installUrl": "https://chromewebstore.google.com/detail/chat-cleanup-%E2%80%94-bulk-archi/ldaeofnbfjlljghcfflkalndgfkdeahi",
             "description": "Chrome extension that adds multi-select, age filters, bulk archive and bulk delete to ChatGPT conversation history, with pinned and Project chats protected and a review step before every destructive batch.",
-            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD"
+            },
             "isAccessibleForFree": true
           },
           {
@@ -901,7 +862,7 @@
               {
                 "@type": "HowToStep",
                 "name": "Select the chats",
-                "text": "Open the Chat Cleanup panel on chatgpt.com and select conversations by hand, with Shift-click, or with an age preset for chats older than 30, 90, 180 or 365 days. Pinned and Project chats are skipped."
+                "text": "Open Chat Cleanup on chatgpt.com. Select conversations manually, with Shift-click, or by last activity: at least 30, 90, 180 or 365 days ago. Bulk selection skips protected chats and unknown protection status."
               },
               {
                 "@type": "HowToStep",
@@ -911,7 +872,7 @@
               {
                 "@type": "HowToStep",
                 "name": "Archive or delete",
-                "text": "Run the batch. Each result is verified against ChatGPT, failures stay visible, and an interrupted batch can be resumed after a reload."
+                "text": "Confirm the batch and follow progress. Archive status reflects ChatGPT’s response; its lists may update later. Failures remain visible and interrupted work can be resumed in the same account."
               }
             ]
           },
@@ -923,7 +884,7 @@
                 "name": "Can I delete multiple ChatGPT chats at once?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "Not in ChatGPT itself. The native interface deletes one conversation at a time from the three-dot menu, or every conversation at once from Settings, Data controls, Delete all chats. There is no checkbox multi-select. Chat Cleanup adds checkboxes, Shift-click ranges and age filters so you can delete a specific batch and keep the rest."
+                  "text": "Yes. Chat Cleanup lets you select a specific batch with checkboxes, Shift-click ranges or age filters, then review and confirm before deleting. ChatGPT also offers individual deletion and Delete all chats under Settings → Data controls. Use Chat Cleanup when you want to choose a batch and keep the rest."
                 }
               },
               {
@@ -931,7 +892,7 @@
                 "name": "How do I delete all my ChatGPT chats?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "Open Settings, Data controls, Delete all chats and confirm. It is permanent and needs no extension. Use Chat Cleanup when you want most of your history gone but not all of it."
+                  "text": "To clear your history, ChatGPT provides Settings → Data controls → Delete all chats. This can also affect Project conversations and cannot be undone. Use Chat Cleanup when you want to review a selected batch instead. Its bulk selection skips pinned, Project and manually protected chats by default."
                 }
               },
               {
@@ -939,7 +900,7 @@
                 "name": "Can I delete old ChatGPT chats but keep the important ones?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "Yes. Age presets select everything older than 30, 90, 180 or 365 days, while pinned chats, Project chats and manually protected chats are skipped automatically. A protected chat can still be included explicitly, and the confirmation identifies the override."
+                  "text": "Yes. Age presets use the last activity date returned by ChatGPT, not just the creation date. They find eligible chats inactive for at least 30, 90, 180 or 365 days. Chats with an unknown activity date are not selected by age. Bulk selection skips pinned chats, Project chats, manually protected chats and chats with unknown protection status. You can explicitly select a protected chat; the confirmation identifies that choice."
                 }
               },
               {
@@ -947,7 +908,15 @@
                 "name": "What is the difference between archiving and deleting a ChatGPT chat?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "Archiving removes a conversation from the sidebar but keeps it in your account, and it can be restored from ChatGPT settings. Deleting removes it from your account and cannot be undone. Chat Cleanup supports both, and deletion requires a separate confirmation."
+                  "text": "Archiving moves a conversation out of regular history without deleting it. You can unarchive it in ChatGPT under Settings → Data controls → Archived chats. List updates may be delayed. Deleting is permanent and cannot be undone. If you may need a conversation again, choose Archive."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Why do chats still appear after archiving?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "ChatGPT can report a chat as archived before its sidebar and Archived chats list update. Chat Cleanup reports the status received from ChatGPT. A chat may remain visible while ChatGPT updates its lists. Wait before repeating the action. Then check Settings → Data controls → Archived chats. There is no guaranteed update time. If the chat still does not appear there, contact support and include any error shown in Chat Cleanup."
                 }
               },
               {
@@ -955,7 +924,7 @@
                 "name": "Can a deleted ChatGPT conversation be recovered?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "No. A deleted conversation is gone from your account and cannot be restored by the extension. OpenAI's retention policy governs what happens on their servers afterwards, which is why every destructive batch shows the exact list of titles first."
+                  "text": "No. Once deleted it is gone from your account and Chat Cleanup cannot bring it back; OpenAI's own retention policy governs what happens on their servers afterwards. That is why every destructive batch shows you the exact list first."
                 }
               },
               {
@@ -963,15 +932,15 @@
                 "name": "Is a ChatGPT bulk delete extension safe to install?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "It depends on the extension, because anything that reads your chat list could in principle transmit it. Chat Cleanup has no backend, account, analytics or third-party requests, and asks for exactly two permissions: storage and access to chatgpt.com. Chrome shows that list before you install."
+                  "text": "Check the extension’s permissions, privacy policy and confirmation flow. Chat Cleanup uses local extension storage, runs only on chatgpt.com and sends requests only to ChatGPT through your existing session. It has no developer-operated backend, analytics or advertising. Result checks can download conversation detail responses, including messages. Their content is not analyzed, retained or sent to the developer. You see an access disclosure before loading history and review the selected chats before an action."
                 }
               },
               {
                 "@type": "Question",
-                "name": "Does Chat Cleanup work with ChatGPT Projects?",
+                "name": "Does it work with ChatGPT Projects?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "Yes. Conversations inside Projects are loaded and can be expanded and selected as a group. They are excluded from global and rule-based selection by default, and only conversations are changed, never the Project itself."
+                  "text": "Yes. Available Project conversations appear in expandable groups. They are excluded from global bulk selection and age filters by default; you can explicitly select conversations in a Project. Chat Cleanup changes conversations, not the Project itself. If ChatGPT does not return part of your history, the panel shows a warning; unavailable chats cannot be selected."
                 }
               },
               {
@@ -979,7 +948,7 @@
                 "name": "What happens if I close the tab in the middle of a cleanup?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "The unfinished batch is stored locally in your Chrome profile so it can be resumed or discarded when you reopen ChatGPT. A request with an uncertain outcome is reconciled by reading its result before it can be sent again."
+                  "text": "The unfinished batch is saved locally in your Chrome profile. Reopen ChatGPT in the same account and workspace to resume or discard it. A request already sent may finish after the tab closes. On resume, uncertain outcomes are checked before a retry; if the result cannot be established, it is reported rather than silently repeated."
                 }
               },
               {
@@ -987,7 +956,7 @@
                 "name": "Does deleting old chats make ChatGPT faster?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "No. Response speed depends on the length of the conversation you currently have open, not on how many old chats sit in the sidebar; starting a fresh chat is what helps there. Cleaning up makes the sidebar usable and the history easier to search, but it does not make ChatGPT think faster."
+                  "text": "Chat Cleanup is designed to organize your history. It does not optimize ChatGPT’s response generation, and we do not promise faster replies after deleting old chats."
                 }
               },
               {
@@ -995,15 +964,15 @@
                 "name": "Can I export my ChatGPT chats before deleting them?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "Yes, and it is worth doing before a large delete. In ChatGPT open Settings, Data controls, Export data, and a download link arrives by email. Chat Cleanup does not export anything itself; it only archives and deletes."
+                  "text": "Chat Cleanup does not include an export feature. For eligible accounts, ChatGPT offers Settings → Data controls → Export data. Download and check the export before deleting conversations you want to keep. Export availability depends on your account and workspace. See OpenAI’s export instructions for the current options."
                 }
               },
               {
                 "@type": "Question",
-                "name": "Is there a limit on how many ChatGPT chats I can delete at once?",
+                "name": "Is there a limit on how many chats I can delete at once?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "No. Chat Cleanup is free and puts no cap on how many conversations you select. Large batches run at a deliberate pace: archive processes one conversation at a time and delete at most two, so ChatGPT's rate limits are respected and a stopped batch can be resumed."
+                  "text": "Chat Cleanup has no paid per-chat quota. You can select multiple available conversations and review the batch before confirming. Large batches take time, and ChatGPT may limit requests. The extension backs off on temporary errors and pauses if it cannot continue. Saved work can be resumed later; repeatedly reopening the panel may generate more requests."
                 }
               },
               {
@@ -1011,7 +980,7 @@
                 "name": "Which browser does Chat Cleanup work in?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "Chat Cleanup is built and tested for Google Chrome and is distributed through the Chrome Web Store. You need to be signed in to ChatGPT in the same browser."
+                  "text": "It is built and tested for Google Chrome and is distributed through the Chrome Web Store. You need to be signed in to ChatGPT in the same browser."
                 }
               },
               {
@@ -1019,7 +988,7 @@
                 "name": "Is Chat Cleanup free, and is it affiliated with OpenAI?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "Chat Cleanup is free. It is an independent extension and is not affiliated with, endorsed by, or sponsored by OpenAI."
+                  "text": "It is free. It is an independent extension and is not affiliated with, endorsed by, or sponsored by OpenAI."
                 }
               }
             ]

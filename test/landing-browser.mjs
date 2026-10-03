@@ -193,7 +193,7 @@ try {
   assert.equal(await ui(`root.querySelector('.cc-cancel').textContent`), 'Not now');
   await screenshot('desktop-resume');
   await click('.cc-ok');
-  await waitUi(`root.querySelector('.cc-back') && root.querySelector('.cc-stat').textContent === '26 chats archived'`);
+  await waitUi(`root.querySelector('.cc-back') && root.querySelector('.cc-stat').textContent === '26 archive requests accepted by ChatGPT'`);
   assert.equal(await evaluate(`document.querySelector('#history-count').textContent`), '4');
   await click('.cc-x');
   await click('#reset-button');

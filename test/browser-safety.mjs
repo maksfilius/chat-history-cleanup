@@ -28,6 +28,14 @@ browser.stdio[4].on('data', chunk => {
   while ((end = buffer.indexOf('\0')) >= 0) {
     const message = JSON.parse(buffer.slice(0, end));
     buffer = buffer.slice(end + 1);
+    if (message.method === 'Fetch.requestPaused') {
+      // Give both worlds a real, identical web origin while serving no remote content.
+      send('Fetch.fulfillRequest', { requestId: message.params.requestId, responseCode: 200,
+        responseHeaders: [{ name: 'Content-Type', value: 'text/html' }],
+        body: Buffer.from('<!doctype html><html><body></body></html>').toString('base64'),
+      }, message.sessionId).catch(() => {});
+      continue;
+    }
     const callback = pending.get(message.id);
     if (callback) {
       pending.delete(message.id);
@@ -62,9 +70,11 @@ try {
   const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
   const cdp = (method, params) => send(method, params, sessionId);
   await cdp('Network.enable');
+  await cdp('Page.enable');
+  await cdp('Fetch.enable', { patterns: [{ urlPattern: 'https://chatgpt.com/*' }] });
+  await cdp('Page.navigate', { url: 'https://chatgpt.com/' });
   // Permit bundled data-URL images while continuing to block all remote page traffic.
   await cdp('Network.setBlockedURLs', { urls: ['http://*', 'https://*', 'ws://*', 'wss://*'] });
-  await cdp('Page.enable');
   await cdp('Emulation.setDeviceMetricsOverride', {
     width: 1280, height: 800, deviceScaleFactor: 1, mobile: false,
   });
@@ -139,11 +149,17 @@ try {
         accessToken: 'synthetic-token', account: { id: 'synthetic-account' },
       });
       if (init.method === 'PATCH') {
+        if (JSON.parse(init.body).is_archived) throw new Error('Archive must run in MAIN');
         writes.push({ url, body: JSON.parse(init.body) });
         if (holdWrites) await new Promise(resolve => releaseWrites.push(resolve));
         if (rejectId && url.endsWith(rejectId)) return json({ detail: { code: 'conversation_not_found' } }, 404);
         if (JSON.parse(init.body).is_archived) archivedIds.add(url.split('/').at(-1));
-        if (JSON.parse(init.body).is_visible === false) archivedIds.delete(url.split('/').at(-1));
+        if (JSON.parse(init.body).is_visible === false) {
+          archivedIds.delete(url.split('/').at(-1));
+          document.documentElement.dataset.testArchived = JSON.stringify(
+            JSON.parse(document.documentElement.dataset.testArchived ?? '[]').filter(id => id !== url.split('/').at(-1)),
+          );
+        }
         return json({ success: true });
       }
       if (url.includes('/gizmos/snorlax/sidebar')) return json({ items: [], cursor: null });
@@ -158,14 +174,35 @@ try {
       }
       if (url.includes('/conversation/')) {
         const id = url.split('/').at(-1);
-        return archivedIds.has(id) ? json({ conversation_id: id, is_archived: true })
+        return (JSON.parse(document.documentElement.dataset.testArchived ?? '[]').includes(id) || archivedIds.has(id))
+          ? json({ conversation_id: id, is_archived: true })
           : json({ detail: { code: 'conversation_deleted' } }, 404);
       }
       throw new Error('Unexpected synthetic request');
     };
   `);
   await evaluate(`document.body.style.background = '#212121'`);
-  await evaluate(bridgeBundle);
+  // A separate fetch in MAIN is essential: evaluating both bundles in the isolated world
+  // used to let this test pass even when the production bridge could not work.
+  await evaluate(`
+    globalThis.archiveWrites = [];
+    globalThis.fetch = async (path, init = {}) => {
+      const json = value => new Response(JSON.stringify(value));
+      if (path === '/api/auth/session') return json({
+        accessToken: 'synthetic-token', account: { id: 'synthetic-account' },
+      });
+      if (init.method !== 'PATCH' || JSON.parse(init.body).is_archived !== true)
+        throw new Error('Unexpected MAIN request');
+      if (new Headers(init.headers).get('ChatGPT-Account-ID') !== 'synthetic-account')
+        throw new Error('Missing account binding');
+      archiveWrites.push({ path, body: JSON.parse(init.body) });
+      document.documentElement.dataset.testArchived = JSON.stringify([
+        ...JSON.parse(document.documentElement.dataset.testArchived ?? '[]'), path.split('/').at(-1),
+      ]);
+      return json({ success: true });
+    };
+  `, false);
+  await evaluate(bridgeBundle, false);
   await evaluate(bundle);
   const snapshot = async name => {
     if (!screenshots) return;
@@ -352,15 +389,32 @@ try {
 
     // Archive gets its own accurate success copy and honors reduced-motion preferences.
     await evaluate('rejectId = null');
+    await evaluate(`{
+      const nav = document.createElement('nav');
+      nav.id = 'archive-sidebar-fixture';
+      const link = document.createElement('a');
+      link.href = '/c/00000000-0000-4000-8000-000000000002';
+      link.textContent = 'Synthetic B';
+      nav.append(link); document.body.append(nav);
+    }`);
     await cdp('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
     await click('.cc-all');
     await click('.cc-ft button:first-child');
     await click('.cc-ok');
-    await waitFor(`testRoots.at(-1).querySelector('.cc-stat')?.textContent === '1 chat archived'`);
-    assert.equal(await evaluate(`testRoots.at(-1).querySelector('.cc-stat').textContent`), '1 chat archived');
-    assert.match(await evaluate(`testRoots.at(-1).querySelector('.cc-result-copy').textContent`), /restore these chats/);
+    await waitFor(`testRoots.at(-1).querySelector('.cc-stat')?.textContent === '1 archive request accepted by ChatGPT'`);
+    assert.equal(await evaluate(`testRoots.at(-1).querySelector('.cc-stat').textContent`), '1 archive request accepted by ChatGPT');
+    assert.equal(await evaluate(`!!document.querySelector('#archive-sidebar-fixture a')`), true,
+      'archive must not fake removal from ChatGPT sidebar');
+    assert.equal(await evaluate(`testRoots.at(-1).querySelector('.cc-result-kicker').textContent`), 'Wait for ChatGPT to update');
+    assert.equal(await evaluate('archiveWrites.length', false), 1, 'archive write ran in MAIN');
+    assert.equal(await evaluate('writes.some(write => write.body.is_archived)'), false,
+      'isolated world never sends an archive PATCH');
+    assert.match(await evaluate(`testRoots.at(-1).querySelector('.cc-result-notice').textContent`), /remain visible for several minutes/);
+    assert.match(await evaluate(`testRoots.at(-1).querySelector('.cc-result-notice').textContent`), /Do not archive them again/);
+    assert.match(await evaluate(`testRoots.at(-1).querySelector('.cc-result-notice').textContent`), /Archived chats/);
     assert.equal(await evaluate(`getComputedStyle(testRoots.at(-1).querySelector('.cc-check')).animationName`), 'none');
     await snapshot('archive-complete');
+    await evaluate(`document.getElementById('archive-sidebar-fixture').remove()`);
     await click('.cc-back');
     assert.equal(await evaluate(`testRoots.at(-1).querySelectorAll('.cc-row').length`), 0);
     assert.equal(await evaluate(`Boolean(testRoots.at(-1).querySelector('.cc-empty'))`), true);

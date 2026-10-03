@@ -7,9 +7,9 @@ URL, and contact items in `RELEASE_READINESS.md` before submission.
 
 Bulk Delete & Archive ChatGPT Chats — Chat Cleanup
 
-Renamed in 0.2.0. Store search weighs the name most heavily and the previous one did not contain
-"ChatGPT" — the word people actually type. The brand moves to the tail because it earns no
-searches yet, and "Archive" stays because that query has far less competition than "delete".
+Renamed in 0.2.0 to state the target platform and actions explicitly: ChatGPT, bulk delete,
+and archive. This makes the listing easier to identify for those searches; ranking gains
+have not been measured or guaranteed.
 
 ## Short description (132 characters maximum)
 
@@ -30,7 +30,7 @@ WHAT YOU CAN DO
 
 • Select individual conversations or a range with Shift-click
 • Select all eligible conversations at once
-• Find chats older than 30, 90, 180, or 365 days
+• Find chats last active at least 30, 90, 180, or 365 days ago
 • Find untitled conversations
 • Review the exact batch before anything changes
 • Bulk archive or permanently delete the selected chats
@@ -47,22 +47,25 @@ Pinned chats, chats inside Projects, manually protected chats, and chats whose p
 cannot be verified are skipped by automatic filters and Select all. You can still select a
 protected conversation manually, and Chat Cleanup identifies that override before starting.
 
-If you may need a conversation later, choose Archive. Archived chats leave the sidebar but remain
-available through ChatGPT settings.
+If you may need a conversation later, choose Archive. Archived chats remain available through
+ChatGPT settings. After ChatGPT accepts archive requests, its sidebar and Archived chats list may
+take several minutes to update. Chat Cleanup shows when you should wait instead of repeating the
+same action.
 
 HOW IT WORKS
 
 1. Open ChatGPT and click the Clean up button.
-2. Select conversations manually or apply an age filter.
+2. Select conversations manually or filter them by last activity.
 3. Review the exact list of chats.
 4. Choose Archive or Delete and follow the visible progress.
 
 PRIVATE BY DESIGN
 
 Chat Cleanup has no account, backend, analytics, advertising, or cloud sync. It runs only on
-chatgpt.com and communicates only with ChatGPT through your existing signed-in session. Message
-content is not analyzed, retained, or sent to the developer. Protection and unfinished-batch state
-are stored locally in Chrome.
+chatgpt.com and communicates only with ChatGPT through your existing signed-in session. To verify
+a result, it may retrieve a selected conversation's detail response from ChatGPT. Message content
+is not analyzed, retained, or sent to the developer. Protection and unfinished-batch state are
+stored locally in Chrome.
 
 Chat Cleanup is free. It works with the ChatGPT web app in Chrome and requires a signed-in ChatGPT
 account.
@@ -105,9 +108,9 @@ substance.
   `npm run build:store-assets`.
 - Prepared three 1280×800 screenshots from the production bundle on the real ChatGPT surface,
   using a fresh Chrome profile and fictional staged metadata:
-  1. `01-select-old-chats-1280x800.png` — age preset with protected chats skipped.
+  1. `01-select-old-chats-1280x800.png` — last-activity preset with protected chats skipped.
   2. `02-review-before-delete-1280x800.png` — exact destructive-action review list.
-  3. `03-cleanup-complete-1280x800.png` — successful archive completion report.
+  3. `03-cleanup-complete-1280x800.png` — accepted archive requests with a prominent delayed-list notice.
 - Regenerate screenshots with `npm run capture:store-screenshots`, then visually review them
   before upload because the ChatGPT host page can change.
 - The 440×280 small promotional tile is ready. A 1400×560 marquee tile is optional.
@@ -117,10 +120,22 @@ substance.
 
 - Store URL: `https://chromewebstore.google.com/detail/chat-cleanup-%E2%80%94-bulk-archi/ldaeofnbfjlljghcfflkalndgfkdeahi`.
 - Extension ID: `ldaeofnbfjlljghcfflkalndgfkdeahi`.
-- Public privacy policy: `https://maksfilius.github.io/chat-history-cleanup/privacy/`.
+- Public privacy policy: `https://chatcleanup.com/privacy/`.
 - Support email: `chatcleanup.support@gmail.com`.
 - Support URL: `https://github.com/maksfilius/chat-history-cleanup/issues`.
 - Version `0.1.0` was approved and publicly released on 2026-09-28.
-- Version `0.2.0` renames the listing, stops reporting unconfirmed archives as successful, and
-  explains that a failed archive is ChatGPT's fault rather than the extension's. Submitted after
-  a real-account regression run.
+- Version `0.2.0` is a local release candidate, not submitted. It renames the listing, updates
+  archive transport and error handling, reports archive status as returned by ChatGPT, and
+  explains possible delayed list updates without claiming a proven ChatGPT bug. The user
+  reports successful archive with variable delay; the complete release sign-off remains open.
+
+## Remaining presentation checks for 0.2.0
+
+- Done locally: refresh the Store and public-site archive screenshots for the current accepted
+  request status and prominent delayed-list notice.
+- Explain possible delayed sidebar/archive list updates in Store copy. The landing FAQ now
+  explains the delay without attributing it to a proven ChatGPT bug.
+- Done locally: replace the landing's privacy promise with the accurate scope: no data sent
+  to the developer or third parties; requests go to ChatGPT.
+- Done locally: check the actual public site in `pages/` at desktop and mobile widths.
+  `test:landing` covers the separate interactive harness, not this public marketing page.

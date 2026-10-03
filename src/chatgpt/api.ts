@@ -486,16 +486,17 @@ export async function listAll(onProgress?: (loaded: number) => void): Promise<In
  * it along with everything else instead of postMessaging into a page that has no bridge.
  */
 const BRIDGE_CHANNEL = 'chat-cleanup-bridge';
-let bridgeRequests = 0;
 
 export async function archiveViaPage(id: string, expectedAccountId?: string): Promise<void> {
   requireConversationId(id);
-  // The bridge reads its own session, so re-assert the account here; `call()` cannot do it.
+  // Pass the reviewed account into MAIN as well: the cached isolated session cannot detect
+  // a workspace change between confirmation and the bridge's fresh session request.
   const session = await sessionContext();
   if (expectedAccountId && session.accountId !== expectedAccountId) {
     throw new ApiError(409, 'account_changed');
   }
-  const requestId = `${Date.now()}-${bridgeRequests++}`;
+  const accountId = expectedAccountId ?? session.accountId;
+  const requestId = crypto.randomUUID();
   return new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => {
       window.removeEventListener('message', onMessage);
@@ -503,16 +504,21 @@ export async function archiveViaPage(id: string, expectedAccountId?: string): Pr
     }, REQUEST_TIMEOUT_MS);
     function onMessage(event: MessageEvent) {
       const m = event.data as { channel?: string; type?: string; requestId?: string;
-        ok?: boolean; status?: number; code?: string } | null;
-      if (event.source !== window || m?.channel !== BRIDGE_CHANNEL || m.type !== 'result') return;
+        ok?: boolean; status?: number; code?: string; retryAfterMs?: number } | null;
+      if (event.source !== window || event.origin !== window.location.origin ||
+        m?.channel !== BRIDGE_CHANNEL || m.type !== 'result') return;
       if (m.requestId !== requestId) return;
+      if (m.ok !== true && (m.ok !== false || !Number.isInteger(m.status) ||
+        m.status! < 0 || m.status! > 599)) return;
       clearTimeout(timer);
       window.removeEventListener('message', onMessage);
-      if (m.ok) resolve();
-      else reject(new ApiError(m.status ?? 0, m.code));
+      if (m.ok === true) resolve();
+      else reject(new ApiError(m.status!, typeof m.code === 'string' ? m.code : undefined,
+        typeof m.retryAfterMs === 'number' && Number.isFinite(m.retryAfterMs)
+          ? Math.max(0, Math.min(m.retryAfterMs, 300_000)) : undefined));
     }
     window.addEventListener('message', onMessage);
-    window.postMessage({ channel: BRIDGE_CHANNEL, type: 'archive', requestId, id }, '/');
+    window.postMessage({ channel: BRIDGE_CHANNEL, type: 'archive', requestId, id, accountId }, '/');
   });
 }
 
@@ -562,9 +568,7 @@ export async function verify(id: string, accountId?: string): Promise<VerifyResu
   if (body?.conversation_id !== id || typeof body?.is_archived !== 'boolean') {
     return { state: 'error', code: 422 };
   }
-  // Immediate and, now that the write goes through the page bridge, true: measured 2026-10-02,
-  // `is_archived` read back correct 3 s after the write while the archived *listing* still did
-  // not have the conversation 33 s later. The listing cannot confirm anything in time, and this
-  // field only ever lied because our own write was not archiving.
+  // Use detail for immediate confirmation; listing membership may lag. This does not replace
+  // the release regression that checks durable archiving after reload in a live account.
   return { state: 'present', archived: body.is_archived };
 }

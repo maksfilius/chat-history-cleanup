@@ -76,6 +76,8 @@ async function act(id: string, kind: 'archive' | 'remove') {
     if (kind === 'archive') chat.archived = true;
     else chat.deleted = true;
     await writeKey('conversations', conversations);
+    // The fictional platform owns archive sidebar updates, as ChatGPT now does in production.
+    if (kind === 'archive') removeRow(id);
   } finally { activeRequests--; }
 }
 

@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test test/*.test.ts",
     "package": "npm run build:extension && node scripts/package-extension.mjs",
-    "test:browser": "node test/browser-safety.mjs",
+    "test:browser": "node test/browser-safety.mjs && node test/archive-browser.mjs",
     "test:landing": "node test/landing-browser.mjs"
   },
   "devDependencies": {

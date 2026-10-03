@@ -280,6 +280,7 @@ function fakeWindow() {
   const posted: Record<string, unknown>[] = [];
   const win = {
     origin: 'https://chatgpt.com',
+    location: { origin: 'https://chatgpt.com' },
     addEventListener: (_: string, fn: (e: { source: unknown; data: unknown }) => void) => { listeners.push(fn); },
     removeEventListener: (_: string, fn: unknown) => {
       const i = listeners.indexOf(fn as never);
@@ -287,7 +288,8 @@ function fakeWindow() {
     },
     postMessage: (data: Record<string, unknown>) => { posted.push(data); },
   };
-  return { win, posted, deliver: (data: unknown) => listeners.slice().forEach((fn) => fn({ source: win, data })) };
+  return { win, posted, deliver: (data: unknown) => listeners.slice().forEach((fn) =>
+    fn({ source: win, data, origin: win.origin } as never)) };
 }
 
 test('the bridge resolves on its own reply and ignores everything else', async () => {
@@ -302,9 +304,11 @@ test('the bridge resolves on its own reply and ignores everything else', async (
   assert.equal(posted.length, 1);
   assert.equal(posted[0].type, 'archive');
   assert.equal(posted[0].id, UUID);
+  assert.equal(posted[0].accountId, 'account-1');
 
   // Another extension's chatter, and a reply for a different request, must not settle ours.
   deliver({ channel: 'someone-else', type: 'result', requestId: posted[0].requestId, ok: true });
+  deliver({ channel: 'chat-cleanup-bridge', type: 'result', requestId: posted[0].requestId, ok: 'true' });
   deliver({ channel: 'chat-cleanup-bridge', type: 'result', requestId: 'not-ours', ok: true });
   deliver({ channel: 'chat-cleanup-bridge', type: 'result', requestId: posted[0].requestId, ok: true });
   await pending;

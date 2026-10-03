@@ -1,6 +1,6 @@
 # Privacy Policy — Chat Cleanup
 
-Last updated: 2026-09-28
+Last updated: 2026-10-02
 
 ## Summary
 
@@ -33,7 +33,8 @@ approve, verify their results, and recover an interrupted batch.
 
 Requests go only to `https://chatgpt.com` over HTTPS. They can include conversation or Project IDs,
 the requested archive/delete flag, the ChatGPT account ID, session cookies, and a bearer token.
-Redirects are rejected and the page referrer is suppressed. No ChatGPT data is transmitted to the
+Backend requests reject redirects. Requests made from the ChatGPT page may include its
+referrer according to the page’s browser policy. No ChatGPT data is transmitted to the
 extension developer or to another service.
 
 ## Local storage
@@ -42,6 +43,7 @@ The extension stores the following in `chrome.storage.local` for this Chrome pro
 
 - the current privacy-disclosure consent version;
 - conversation IDs you manually protect;
+- temporary batch ownership information while a cleanup is running, to prevent overlapping batches;
 - for an unfinished batch: schema version, ChatGPT account/workspace ID, action type, start time,
   and each selected conversation's ID, title, state, attempt count, and optional error.
 

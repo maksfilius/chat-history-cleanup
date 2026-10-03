@@ -41,8 +41,11 @@ Record Chrome version, ChatGPT account type, date, ZIP SHA-256, and observed res
 
 ## Archive and delete
 
-- [ ] Archive disposable chats; every confirmed row disappears and can be restored from ChatGPT
-      settings.
+- [ ] Archive explicitly selected disposable chats with the exact candidate ZIP; record their IDs
+      and timestamps. Reload the page and reopen cleanup: those IDs must stay out of active history.
+- [ ] Check the same IDs in ChatGPT settings → Archived chats and restore them. Record how long
+      listing updates take; a disappearing DOM row or detail=true alone is not the release gate.
+- [ ] Switch workspace between archive review and dispatch: no PATCH goes to the new workspace.
 - [ ] Delete disposable chats; deletion requires the permanent-action confirmation and the chats
       are actually gone.
 - [ ] The verification disclosure is visible before both actions.
@@ -73,7 +76,7 @@ Record Chrome version, ChatGPT account type, date, ZIP SHA-256, and observed res
 - [ ] `chrome.storage.local` contains only consent version, protected IDs, lease data while active,
       and the documented unfinished-batch fields. It never contains the bearer token or messages.
 - [ ] Full detail response message content is not logged, rendered, or persisted.
-- [ ] `unzip -Z1 chat-cleanup.zip` lists exactly manifest, content bundle, and four icons.
+- [ ] `unzip -Z1 chat-cleanup.zip` lists exactly manifest, content bundle, MAIN pageBridge bundle, and four icons.
 - [ ] Screenshot assets use disposable titles and contain no account email, real message content,
       or other personal information.
 

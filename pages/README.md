@@ -35,18 +35,20 @@ The header, hero, final CTA and structured data point to the published Chrome We
 
 ## Custom domain
 
-The site hardcodes `https://maksfilius.github.io/chat-history-cleanup` in canonical tags, Open
-Graph tags, JSON-LD, `robots.txt` and `sitemap.xml` — 28 occurrences across 7 files. Swap them in
-one pass and drop a `CNAME` next to this file:
+The site hardcodes `https://chatcleanup.com` in canonical tags, Open
+Graph tags, JSON-LD, `robots.txt` and `sitemap.xml`. The GitHub Pages custom domain must be
+configured as `chatcleanup.com` in repository Settings → Pages. This site deploys through a
+custom GitHub Actions workflow, so GitHub ignores a `CNAME` file in the artifact.
+
+If the domain changes later, replace it in one pass:
 
 ```bash
-grep -rl 'maksfilius.github.io/chat-history-cleanup' pages/ \
-  | xargs sed -i '' 's|https://maksfilius.github.io/chat-history-cleanup|https://example.com|g'
-printf 'example.com\n' > pages/CNAME
+grep -rl 'https://chatcleanup.com' pages/ \
+  | xargs sed -i '' 's|https://chatcleanup.com|https://example.com|g'
 ```
 
-Then point DNS at GitHub Pages and re-enable HTTPS in the repository's Pages settings. Do it
-before the old URLs get indexed; afterwards it costs redirects that GitHub Pages cannot serve.
+Verify domain ownership at the GitHub account level, point the apex and `www` DNS records at
+GitHub Pages, and enable HTTPS in the repository's Pages settings.
 
 ## Screenshots
 

@@ -9,7 +9,7 @@
     />
     <meta name="color-scheme" content="dark" />
     <title>Privacy Policy — Chat Cleanup</title>
-    <link rel="canonical" href="https://maksfilius.github.io/chat-history-cleanup/privacy/" />
+    <link rel="canonical" href="https://chatcleanup.com/privacy/" />
     <meta name="theme-color" content="#111511" />
     <link rel="icon" type="image/svg+xml" href="../assets/logo.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon32.png" />
@@ -20,7 +20,7 @@
       <header>
         <a class="brand" href="../"><img class="mark" src="../assets/logo.svg" alt="" width="30" height="30" /> Chat Cleanup</a>
         <h1>Privacy Policy</h1>
-        <p class="updated">Last updated: September 28, 2026</p>
+        <p class="updated">Last updated: October 2, 2026</p>
         <p class="summary">
           Chat Cleanup processes your ChatGPT history locally in your browser. It has no
           developer-operated backend, analytics, advertising, telemetry, or third-party reporting.
@@ -69,9 +69,9 @@
         <p>
           Requests go only to <code>https://chatgpt.com</code> over HTTPS. They can include
           conversation or Project IDs, the requested archive/delete flag, the ChatGPT account ID,
-          session cookies, and a bearer token. Redirects are rejected and the page referrer is
-          suppressed. No ChatGPT data is transmitted to the extension developer or to another
-          service.
+          session cookies, and a bearer token. Backend requests reject redirects. Requests made
+          from the ChatGPT page may include its referrer according to the page’s browser policy.
+          No ChatGPT data is transmitted to the extension developer or to another service.
         </p>
       </section>
 
@@ -84,6 +84,7 @@
         <ul>
           <li>the current privacy-disclosure consent version;</li>
           <li>conversation IDs you manually protect;</li>
+          <li>temporary batch ownership information while a cleanup is running, to prevent overlapping batches;</li>
           <li>
             for an unfinished batch: schema version, ChatGPT account/workspace ID, action type,
             start time, and each selected conversation's ID, title, state, attempt count, and

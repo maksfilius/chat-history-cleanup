@@ -5,7 +5,8 @@ Use this checklist for version `0.2.0`. Keep these answers consistent with `list
 
 ## 1. Package
 
-- Add new item and upload `chat-cleanup.zip`.
+- Open the existing published item `ldaeofnbfjlljghcfflkalndgfkdeahi`. On Package, choose
+  **Upload New Package** and upload `chat-cleanup.zip`. Do not create a second Store item.
 - Confirm name: `Bulk Delete & Archive ChatGPT Chats — Chat Cleanup`.
 - Confirm version: `0.2.0`.
 - Confirm the package declares only `storage` and `https://chatgpt.com/*`.
@@ -13,7 +14,7 @@ Use this checklist for version `0.2.0`. Keep these answers consistent with `list
 Expected SHA-256:
 
 ```text
-331d13032a263afed7c6c9e934042c6185400761a2db2673f0a9459aaedec841
+414227752b0e3896916f69c4c697b7755d233789e7c743c44619ffa4461b72bf
 ```
 
 ## 2. Store listing
@@ -108,7 +109,7 @@ Confirm every dashboard statement covering these facts:
 Privacy policy URL:
 
 ```text
-https://maksfilius.github.io/chat-history-cleanup/privacy/
+https://chatcleanup.com/privacy/
 ```
 
 ## 4. Distribution
@@ -131,7 +132,7 @@ Prerequisite: Sign in to https://chatgpt.com/ with a reviewer-owned ChatGPT acco
 1. Open https://chatgpt.com/ and click the Clean up button in the lower-right corner.
 2. Review the data-access disclosure and click Allow and continue.
 3. Select conversations manually, with Select all, or with an age preset.
-4. Click Archive, review the exact titles and count, and confirm. Progress and the completion report remain visible.
+4. Click Archive, review the exact titles and count, and confirm. Progress and the completion report remain visible. The report attributes archive confirmation to ChatGPT; its sidebar and Archived chats list may update later. Wait for the lists to update before repeating the action.
 5. To test deletion, select a disposable conversation, click Delete, review the permanent-action confirmation, and confirm.
 6. To test recovery, begin a batch with several disposable conversations, click Stop, reload the page, reopen Chat Cleanup, and choose Resume.
 

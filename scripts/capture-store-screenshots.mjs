@@ -239,6 +239,17 @@ try {
     globalThis.storeProjects = ${JSON.stringify(projectFixture)};
     globalThis.storeArchived = new Set();
     globalThis.storeDeleted = new Set();
+    // Screenshot-only platform stub. Never load the live archive bridge on chatgpt.com:
+    // all actions must be confined to the fictional records in this fresh profile.
+    window.addEventListener('message', event => {
+      const m = event.data;
+      if (event.source !== window || event.origin !== location.origin ||
+        m?.channel !== 'chat-cleanup-bridge' || m.type !== 'archive' ||
+        m.accountId !== 'fictional-store-account' ||
+        ![...storeFlat, ...storeProjects].some(chat => chat.id === m.id)) return;
+      storeArchived.add(m.id);
+      window.postMessage({ channel: m.channel, type: 'result', requestId: m.requestId, ok: true }, '/');
+    });
     globalThis.fetch = async (request, init = {}) => {
       const url = String(request);
       const json = (value, status = 200) => new Response(JSON.stringify(value), {
@@ -426,7 +437,7 @@ try {
   assert.equal(await evaluate("storeRoots.at(-1).querySelector('.cc-sel').textContent"), '9 selected');
   await setCaption(
     'Chat Cleanup',
-    'Find old chats in seconds',
+    'Select old chats by activity',
     'Age filters surface cleanup candidates while pinned and Project chats stay protected.',
   );
   await capture('01-select-old-chats-1280x800.png');
@@ -449,11 +460,11 @@ try {
   await waitFor("Boolean(storeRoots.at(-1).querySelector('.cc-dlg'))");
   await click('.cc-ok');
   await waitFor("Boolean(storeRoots.at(-1).querySelector('.cc-back'))", 20_000);
-  assert.equal(await evaluate("storeRoots.at(-1).querySelector('.cc-stat').textContent"), '9 chats archived');
+  assert.equal(await evaluate("storeRoots.at(-1).querySelector('.cc-stat').textContent"), '9 archive requests accepted by ChatGPT');
   await setCaption(
-    'Clear result',
-    'Know exactly what changed',
-    'Visible progress and a completion report make every bulk action easy to verify.',
+    'Clear status',
+    'Archive with confidence',
+    'See accepted requests, failures, and when ChatGPT still needs time to update its lists.',
   );
   await capture('03-cleanup-complete-1280x800.png');
 
